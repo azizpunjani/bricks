@@ -1,5 +1,7 @@
 # bricks
 
+Review AI code brick by brick.
+
 AI agents now write pull requests faster than people can read them. A 2,000-line diff lands, the reviewer skims it, approves it, and hopes. The human is still in the loop on paper, but not in practice.
 
 bricks is a Claude Code skill that cuts a pull request into 8 to 20 small pieces, called bricks, and hands them to you in the order the feature was built. You place one, read what it does, then place the next. When the last one lands you have seen every added line, and you know how the pieces fit.
