@@ -1086,6 +1086,8 @@ figcaption { font-size: 14px; color: var(--muted); }
     if (b && b.matches(':focus-visible')) preview(b);
   });
   addEventListener('scroll', () => { if (hovered) unpreview(); }, { capture: true, passive: true });
+  // Pointer left the window: no later mouseover will come to hide the tip.
+  document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) unpreview(); });
 
   let dragRect = null;
   const build = $('#build');
