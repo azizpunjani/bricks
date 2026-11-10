@@ -1,0 +1,11 @@
+{
+  "name": "bricks",
+  "owner": { "name": "azizpunjani", "url": "https://github.com/azizpunjani" },
+  "plugins": [
+    {
+      "name": "bricks",
+      "source": "./",
+      "description": "Review big AI-written pull requests one small piece at a time."
+    }
+  ]
+}

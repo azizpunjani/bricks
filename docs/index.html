@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>bricks</title>
+<meta name="description" content="A Claude Code skill that cuts a big pull request into small pieces you review one at a time, in the order the feature was built.">
+<meta property="og:title" content="bricks">
+<meta property="og:description" content="Review big AI-written pull requests one small piece at a time.">
+<meta property="og:image" content="https://azizpunjani.github.io/bricks/img/hero-dark.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&family=Rubik:wght@500;700;800&display=swap">
+<style>
+/* Design intent
+   Audience: developers and product owners skimming a GitHub Pages site.
+   Tone: playful build kit, modern, fast, legible.
+   Layout: the page is the box the kit comes in. A plain header, a hero that states the problem,
+   then the signature: one real PR shown as a grey slab of 236 lines next to the 12 coloured bricks
+   it was cut into. Below: the demo screenshot on a studded baseplate, three steps, install, footer.
+   Colour and type come from the demo page itself (layer colours: logic yellow, screen red,
+   wiring green, tests white) so the site and the tool read as one thing. */
+:root {
+  --bg: #edf1f7;
+  --surface: #ffffff;
+  --plate: #dde5f0;
+  --stud: #cdd8e6;
+  --fg: #121a2b;
+  --muted: #4b586e;
+  --line: #d3dbe6;
+  --focus: #2156d9;
+  --go: #121a2b;
+  --on-go: #ffffff;
+  --shade: rgba(12, 22, 42, 0.24);
+  --diff: #c5cfdd;
+  --code-bg: #f5f8fc;
+  --data: #1c63d6;   --on-data: #ffffff;
+  --logic: #ffc21f;  --on-logic: #2a1e00;
+  --ui: #d5352a;     --on-ui: #ffffff;
+  --wiring: #11804d; --on-wiring: #ffffff;
+  --test: #ffffff;   --on-test: #172033;  --edge-test: #7d8aa1;
+  --display: "Rubik", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1020; --surface: #141b2d; --plate: #10172a; --stud: #1c2741;
+    --fg: #e9eef7; --muted: #a3afc4; --line: #263049; --focus: #86b4ff;
+    --go: #e9eef7; --on-go: #0b1020; --shade: rgba(0, 0, 0, 0.35); --diff: #2a3550; --code-bg: #0f1526;
+    --data: #5c9dff; --on-data: #04122e; --logic: #ffcb3d; --on-logic: #241900;
+    --ui: #ff6f61; --on-ui: #2a0603; --wiring: #3dd592; --on-wiring: #03230f;
+    --test: #e8edf6; --on-test: #121a2b; --edge-test: #aeb9cc;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1020; --surface: #141b2d; --plate: #10172a; --stud: #1c2741;
+  --fg: #e9eef7; --muted: #a3afc4; --line: #263049; --focus: #86b4ff;
+  --go: #e9eef7; --on-go: #0b1020; --shade: rgba(0, 0, 0, 0.35); --diff: #2a3550; --code-bg: #0f1526;
+  --data: #5c9dff; --on-data: #04122e; --logic: #ffcb3d; --on-logic: #241900;
+  --ui: #ff6f61; --on-ui: #2a0603; --wiring: #3dd592; --on-wiring: #03230f;
+  --test: #e8edf6; --on-test: #121a2b; --edge-test: #aeb9cc;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--body); }
+a { color: var(--focus); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.12; margin: 0; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+::selection { background: var(--logic); color: var(--on-logic); }
+code { font: 500 0.88em var(--mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+img, video { max-width: 100%; display: block; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+section { padding-block: 56px; }
+h2 { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem); font-weight: 800; }
+
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 20px; }
+.logo { font: 800 18px var(--display); letter-spacing: 0.08em; text-transform: uppercase; background: var(--go); color: var(--on-go); padding: 4px 11px 6px; border-radius: 7px; box-shadow: inset 0 -3px 0 var(--shade); text-decoration: none; }
+.top nav { display: flex; gap: 20px; font: 600 15px var(--display); }
+.top nav a { color: var(--fg); text-decoration: none; }
+.top nav a:hover { text-decoration: underline; }
+
+/* Hero */
+.hero { padding-block: 32px 24px; display: grid; gap: 24px; }
+.hero h1 { font-size: clamp(2.2rem, 1.3rem + 4vw, 4.4rem); font-weight: 800; letter-spacing: -0.02em; max-width: 21ch; }
+.lede { font-size: clamp(1.05rem, 1rem + 0.3vw, 1.25rem); color: var(--muted); max-width: 60ch; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px 3px; border-radius: 12px; font: 700 16px var(--display); text-decoration: none; border: 2px solid var(--fg); color: var(--fg); background: var(--surface); box-shadow: inset 0 -4px 0 var(--shade); transition: transform 0.12s; }
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--go); color: var(--on-go); border-color: var(--go); }
+
+/* Signature: the PR as a grey slab, then the bricks it became */
+.kit { display: grid; grid-template-columns: minmax(150px, 220px) auto 1fr; align-items: center; gap: 20px; padding: 24px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+.slab { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+.slab i { height: 4px; border-radius: 2px; background: var(--diff); }
+.slab-cap, .kit-cap { font-size: 15px; color: var(--muted); margin-top: 10px; }
+.arrow { width: 32px; height: 32px; color: var(--muted); }
+.bricks { list-style: none; margin: 0; padding: 14px 0 0; display: flex; flex-wrap: wrap; gap: 14px 8px; }
+.b { position: relative; padding: 6px 11px 9px; border-radius: 7px; font: 600 14px/1.2 var(--display); box-shadow: inset 0 -3px 0 var(--shade); animation: snap 0.5s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--i) * 70ms); }
+.b::before { content: ""; position: absolute; top: -5px; left: 10px; width: 11px; height: 6px; border-radius: 3px 3px 0 0; background: var(--c); box-shadow: 18px 0 0 var(--c); }
+.b.logic { --c: var(--logic); background: var(--logic); color: var(--on-logic); }
+.b.ui { --c: var(--ui); background: var(--ui); color: var(--on-ui); }
+.b.wiring { --c: var(--wiring); background: var(--wiring); color: var(--on-wiring); }
+.b.test { --c: var(--edge-test); background: var(--test); color: var(--on-test); outline: 1.5px solid var(--edge-test); outline-offset: -1.5px; }
+@keyframes snap { from { transform: translateY(-12px); } to { transform: none; opacity: 1; } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; color: var(--muted); margin-top: 12px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: var(--c); outline: 1px solid var(--line); }
+
+/* Screenshot on a baseplate */
+.plate { padding: 18px; border-radius: 20px; background-color: var(--plate); background-image: radial-gradient(circle, var(--stud) 3.5px, transparent 4px); background-size: 22px 22px; }
+.plate img, .plate video { width: 100%; height: auto; border-radius: 12px; box-shadow: 0 14px 36px var(--shade); }
+.shot-cap { font-size: 15px; color: var(--muted); margin-top: 12px; }
+
+/* Steps */
+.steps { list-style: none; margin: 32px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; gap: 10px; align-content: start; max-width: 36ch; }
+.steps li::before { content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--go); color: var(--on-go); font: 800 16px var(--display); box-shadow: inset 0 -3px 0 var(--shade); }
+.steps h3 { font-size: 20px; }
+.steps p { color: var(--muted); }
+
+/* Demo */
+.demo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 32px; align-items: center; }
+.demo .copy { display: grid; gap: 16px; align-content: start; }
+.demo .copy p { color: var(--muted); max-width: 46ch; }
+
+/* Install */
+.install { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-top: 28px; }
+.card { min-width: 0; display: grid; gap: 12px; align-content: start; }
+.card h3 { font-size: 18px; }
+.snip { position: relative; min-width: 0; }
+.snip pre { margin: 0; padding: 14px 16px; padding-right: 76px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; font: 14px/1.6 var(--mono); overflow-x: auto; }
+.snip pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+.copy-btn { position: absolute; top: 8px; right: 8px; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 600 13px var(--display); cursor: pointer; }
+.needs { font-size: 15px; color: var(--muted); margin-top: 16px; }
+
+footer { border-top: 1px solid var(--line); padding-block: 28px 40px; color: var(--muted); font-size: 15px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+@media (max-width: 860px) {
+  .kit { grid-template-columns: 1fr; }
+  .slab { max-width: 200px; }
+  .arrow { transform: rotate(90deg); justify-self: start; }
+  .steps, .install, .demo { grid-template-columns: 1fr; }
+  section { padding-block: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .b { animation: none; }
+  .btn { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="logo" href="./">bricks</a>
+  <nav aria-label="Site">
+    <a href="demo/">Demo</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/azizpunjani/bricks">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>AI writes the pull request. You still have to review it.</h1>
+    <p class="lede">AI agents now open pull requests with hundreds of lines across a dozen files. That's too much to read in one go. bricks cuts a pull request into small pieces and gives them to you in the order the feature was built. You check one piece at a time, and you see every line.</p>
+    <div class="ctas">
+      <a class="btn primary" href="demo/">Try the demo</a>
+      <a class="btn" href="#install">Install</a>
+    </div>
+
+    <div class="kit" aria-label="A real pull request: 236 new lines cut into 12 bricks">
+      <div>
+        <div class="slab" id="slab" aria-hidden="true"></div>
+        <p class="slab-cap">236 new lines in 7 files</p>
+      </div>
+      <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+      <div>
+        <ol class="bricks">
+          <li class="b logic" style="--i:0">Tooltip leaves with its item</li>
+          <li class="b logic" style="--i:1">showTooltip() for any element</li>
+          <li class="b logic" style="--i:2">Escape clears the search</li>
+          <li class="b ui" style="--i:3">Named card styles</li>
+          <li class="b ui" style="--i:4">Name under the preview</li>
+          <li class="b ui" style="--i:5">Two-column grid style</li>
+          <li class="b ui" style="--i:6">Grid showNames switch</li>
+          <li class="b ui" style="--i:7">Steady scrollbar space</li>
+          <li class="b wiring" style="--i:8">Name tooltip on hover</li>
+          <li class="b wiring" style="--i:9">Section passes names down</li>
+          <li class="b wiring" style="--i:10">Search results show names</li>
+          <li class="b test" style="--i:11">Escape tests</li>
+        </ol>
+        <div class="legend" aria-hidden="true">
+          <span style="--c: var(--logic)">Logic</span>
+          <span style="--c: var(--ui)">Screen</span>
+          <span style="--c: var(--wiring)">Wiring</span>
+          <span style="--c: var(--test)">Tests</span>
+        </div>
+        <p class="kit-cap">The same pull request as 12 bricks, in the order it was built. From <a href="https://github.com/excalidraw/excalidraw/pull/12173">excalidraw/excalidraw#12173</a>.</p>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <div class="plate">
+        <picture>
+          <source srcset="img/hero-dark.jpg" media="(prefers-color-scheme: dark)">
+          <img src="img/hero-light.jpg" width="1800" height="1125" alt="The demo halfway through: 7 of 12 bricks placed, a sketch of the library sidebar filling in, and a panel explaining the brick that just landed.">
+        </picture>
+      </div>
+      <p class="shot-cap">Halfway through. Each brick you place fills in its part of the screen, and the panel on the right explains it.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li>
+          <h3>Point it at a pull request</h3>
+          <p>Run <code>/bricks</code> with a PR link in Claude Code. It splits the change into 8 to 20 bricks: a query, a rule, a component, a test.</p>
+        </li>
+        <li>
+          <h3>Place the bricks</h3>
+          <p>A brick only fits once the bricks it uses are in place. Each one tells you what it adds and shows the lines that matter.</p>
+        </li>
+        <li>
+          <h3>See the whole thing</h3>
+          <p>After the last brick you get a map of what depends on what, and the change in five sentences.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap demo">
+      <div class="copy">
+        <h2>Try it on a real pull request</h2>
+        <p>This one is from Excalidraw. It adds names to library search results. 12 bricks cover all 236 new lines. It's one HTML page, so it works on your phone too.</p>
+        <div class="ctas"><a class="btn primary" href="demo/">Open the demo</a></div>
+      </div>
+      <div class="plate">
+        <video src="img/demo-build.mp4" poster="img/diagram.jpg" width="1280" height="800" autoplay muted loop playsinline aria-label="Bricks placed one at a time while the screen sketch fills in."></video>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Install</h2>
+      <div class="install">
+        <div class="card">
+          <h3>As a Claude Code plugin</h3>
+          <div class="snip"><pre><code>/plugin install bricks --marketplace azizpunjani/bricks</code></pre><button class="copy-btn" type="button">Copy</button></div>
+          <p>Then run <code>/bricks:bricks &lt;PR link&gt;</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Or copy the folder</h3>
+          <div class="snip"><pre><code>git clone https://github.com/azizpunjani/bricks
+cp -r bricks/skill ~/.claude/skills/bricks</code></pre><button class="copy-btn" type="button">Copy</button></div>
+          <p>Then run <code>/bricks &lt;PR link&gt;</code>.</p>
+        </div>
+      </div>
+      <p class="needs">You need <code>gh</code> (logged in), <code>git</code>, <code>python3</code> and <code>node</code> 18 or later.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>MIT license.</span>
+    <a href="https://github.com/azizpunjani/bricks">Source on GitHub</a>
+  </div>
+</footer>
+
+<script>
+  // One grey bar per added line in the demo PR.
+  document.getElementById('slab').innerHTML = '<i></i>'.repeat(236);
+  for (const btn of document.querySelectorAll('.copy-btn')) {
+    btn.addEventListener('click', async () => {
+      const text = btn.previousElementSibling.textContent;
+      try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+      catch { getSelection().selectAllChildren(btn.previousElementSibling); btn.textContent = 'Selected'; }
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+    });
+  }
+</script>
+</body>
+</html>

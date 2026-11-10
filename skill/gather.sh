@@ -23,12 +23,14 @@ t0=$(date +%s)
 gh pr view "$num" --repo "$repo" --json number,url,title,body,headRefName,headRefOid,files,closingIssuesReferences > "$scratch/pr.json"
 gh pr diff "$num" --repo "$repo" > "$scratch/pr.diff"
 head=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["headRefOid"])' "$scratch/pr.json")
-branch=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["headRefName"])' "$scratch/pr.json")
 
 # Head clone: shallow, into scratch only. Reuse when it already holds the head.
 if ! git -C "$scratch/repo" cat-file -e "$head^{commit}" 2>/dev/null; then
   rm -rf "$scratch/repo"
-  git clone -q --depth 1 --branch "$branch" "https://github.com/$repo.git" "$scratch/repo"
+  # pull/<n>/head survives a merged PR's deleted branch and covers fork PRs.
+  git init -q "$scratch/repo"
+  git -C "$scratch/repo" fetch -q --depth 1 "https://github.com/$repo.git" "pull/$num/head"
+  git -C "$scratch/repo" checkout -q FETCH_HEAD
   git -C "$scratch/repo" rev-parse HEAD | grep -q "^$head" || { echo "clone HEAD is not the PR head $head (branch moved?)" >&2; exit 1; }
 fi
 
@@ -58,8 +60,8 @@ print(f"PR #{d['number']}  {d['title']}\n{d['url']}\nhead {d['headRefOid']}  bra
 print("files:", *[f"\n  {f['path']} (+{f['additions']} -{f['deletions']})" for f in d['files']])
 iss=[i['number'] for i in d.get('closingIssuesReferences') or []]
 print("linked issues:", iss or "none")
-m=re.findall(r'https://claude\.ai/artifact/\S+', d.get('body') or '')
-print("demo report artifact:", m[0] if m else "none (no screenshots; draw the screen from code only)")
+m=re.findall(r'https://(?:github\.com/user-attachments/assets/[\w-]+|\S+\.(?:png|jpe?g|gif|webp))', d.get('body') or '')
+print("screenshots:", " ".join(m) if m else "none (draw the screen from code only)")
 PY
 for n in $(python3 -c 'import json,sys;print(" ".join(str(i["number"]) for i in json.load(open(sys.argv[1])).get("closingIssuesReferences") or []))' "$scratch/pr.json"); do
   echo; echo "## issue #$n"; gh issue view "$n" --repo "$repo" --json title,body --jq '"\(.title)\n\n\(.body)"' 2>/dev/null || echo "(issue #$n is not in $repo; read it from its own repo)"

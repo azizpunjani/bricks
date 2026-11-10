@@ -1,0 +1,1175 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
+<title>Library search shows item names</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Rubik:wght@500;600;700;800&display=swap">
+<style>
+/* Layout: a game board read left to right. A sticky HUD on top (score, meter, next move, the build strip).
+   Below it: the tray of bricks to pick up (left), the baseplate where they land (middle), and the panel that
+   says what just landed (right). Under 1180px the panel turns into a bottom sheet; under 760px the tray
+   turns into a sticky dock under the HUD. "How it all fits" opens under the board when the last brick lands.
+   Brick colour is the layer: data blue, logic yellow, screen red, wiring green, tests white.
+   Solid bricks fit now; dashed bricks are locked until the bricks they need are placed. */
+:root {
+  --bg: #edf1f7;
+  --surface: #ffffff;
+  --sunk: #f3f6fa;
+  --well: #e3e9f2;
+  --plate: #dde5f0;
+  --stud: #cdd8e6;
+  --fg: #121a2b;
+  --muted: #4b586e;
+  --line: #d3dbe6;
+  --line-strong: #8a97ad;
+  --focus: #2156d9;
+  --go: #121a2b;
+  --on-go: #ffffff;
+  --tip-bg: #121a2b;
+  --tip-fg: #ffffff;
+  --shade: rgba(12, 22, 42, 0.24);
+  --gloss: rgba(255, 255, 255, 0.34);
+  --lift: 0 8px 20px rgba(18, 30, 56, 0.14);
+  --data: #1c63d6;   --on-data: #ffffff;   --edge-data: #1c63d6;
+  --logic: #ffc21f;  --on-logic: #2a1e00;  --edge-logic: #9c6e00;
+  --ui: #d5352a;     --on-ui: #ffffff;     --edge-ui: #c02e24;
+  --wiring: #11804d; --on-wiring: #ffffff; --edge-wiring: #0f7446;
+  --test: #ffffff;   --on-test: #172033;   --edge-test: #7d8aa1;
+  --code-bg: #f5f8fc;
+  --add: #e3f4ea;
+  --add-mark: #11804d;
+  --sx-kw: #9c2b7d;
+  --sx-str: #1c7438;
+  --sx-cm: #5f6b7d;
+  --sx-tag: #b0451c;
+  --sx-num: #1f5fa8;
+  --display: "Rubik", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --hud-top: calc(env(safe-area-inset-top, 0px) + 8px);
+  --hud-h: 120px;
+  --sheet-h: 150px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1020; --surface: #141b2d; --sunk: #182035; --well: #222b42; --plate: #10172a; --stud: #1c2741;
+    --fg: #e9eef7; --muted: #a3afc4; --line: #263049; --line-strong: #56637f; --focus: #86b4ff;
+    --go: #e9eef7; --on-go: #0b1020; --tip-bg: #e9eef7; --tip-fg: #0b1020;
+    --shade: rgba(0, 0, 0, 0.3); --gloss: rgba(255, 255, 255, 0.4); --lift: 0 10px 24px rgba(0, 0, 0, 0.45);
+    --data: #5c9dff; --on-data: #04122e; --edge-data: #6aa6ff;
+    --logic: #ffcb3d; --on-logic: #241900; --edge-logic: #ffcb3d;
+    --ui: #ff6f61; --on-ui: #2a0603; --edge-ui: #ff7b6e;
+    --wiring: #3dd592; --on-wiring: #03230f; --edge-wiring: #3dd592;
+    --test: #e8edf6; --on-test: #121a2b; --edge-test: #aeb9cc;
+    --code-bg: #0f1526; --add: #12301f; --add-mark: #5bd99a;
+    --sx-kw: #e391d3; --sx-str: #86d6a0; --sx-cm: #8a96a8; --sx-tag: #f2a57e; --sx-num: #8ec4ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1020; --surface: #141b2d; --sunk: #182035; --well: #222b42; --plate: #10172a; --stud: #1c2741;
+  --fg: #e9eef7; --muted: #a3afc4; --line: #263049; --line-strong: #56637f; --focus: #86b4ff;
+  --go: #e9eef7; --on-go: #0b1020; --tip-bg: #e9eef7; --tip-fg: #0b1020;
+  --shade: rgba(0, 0, 0, 0.3); --gloss: rgba(255, 255, 255, 0.4); --lift: 0 10px 24px rgba(0, 0, 0, 0.45);
+  --data: #5c9dff; --on-data: #04122e; --edge-data: #6aa6ff;
+  --logic: #ffcb3d; --on-logic: #241900; --edge-logic: #ffcb3d;
+  --ui: #ff6f61; --on-ui: #2a0603; --edge-ui: #ff7b6e;
+  --wiring: #3dd592; --on-wiring: #03230f; --edge-wiring: #3dd592;
+  --test: #e8edf6; --on-test: #121a2b; --edge-test: #aeb9cc;
+  --code-bg: #0f1526; --add: #12301f; --add-mark: #5bd99a;
+  --sx-kw: #e391d3; --sx-str: #86d6a0; --sx-cm: #8a96a8; --sx-tag: #f2a57e; --sx-num: #8ec4ff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); -webkit-tap-highlight-color: transparent; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 40; background: var(--bg); }
+[data-layer="data"] { --c: var(--data); --on: var(--on-data); --edge: var(--edge-data); }
+[data-layer="logic"] { --c: var(--logic); --on: var(--on-logic); --edge: var(--edge-logic); }
+[data-layer="ui"] { --c: var(--ui); --on: var(--on-ui); --edge: var(--edge-ui); }
+[data-layer="wiring"] { --c: var(--wiring); --on: var(--on-wiring); --edge: var(--edge-wiring); }
+[data-layer="test"] { --c: var(--test); --on: var(--on-test); --edge: var(--edge-test); }
+[data-layer] { --rim: color-mix(in srgb, var(--edge) 55%, transparent); --glow: color-mix(in srgb, var(--c) 60%, transparent); }
+
+h1, h2, h3, h4 { font-family: var(--display); margin: 0; line-height: 1.2; text-wrap: balance; }
+h4 { font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+p { margin: 0; }
+a { color: var(--focus); text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: max(14px, 0.88em); background: var(--code-bg); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px; overflow-wrap: anywhere; }
+kbd { font: 500 14px/1 var(--mono); padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, currentColor 16%, transparent); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ico { width: 1.05em; height: 1.05em; flex: none; }
+
+.app { max-width: 1560px; margin: 0 auto; padding-block: 22px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 16px; }
+
+/* Header */
+.top { display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font: 600 14px/1.3 var(--display); color: var(--muted); }
+.eyebrow a { color: inherit; }
+.logo { font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; background: var(--go); color: var(--on-go); padding: 3px 9px 4px; border-radius: 6px; box-shadow: inset 0 -3px 0 var(--shade); }
+h1 { font-size: clamp(1.6rem, 1.1rem + 1.5vw, 2.3rem); font-weight: 800; letter-spacing: -0.01em; line-height: 1.12; }
+.lede { color: var(--muted); max-width: 70ch; font-size: 17px; }
+
+/* Bricks: one look for anything that is a placed brick, one for anything still waiting */
+.solid { background: linear-gradient(var(--gloss), transparent 45%) var(--c); color: var(--on); box-shadow: inset 0 -4px 0 var(--shade), inset 0 0 0 1px var(--rim); }
+.ghosty { background: color-mix(in srgb, var(--c) 8%, var(--surface)); color: var(--fg); border: 2px dashed var(--edge); }
+.studs { position: absolute; left: 12px; top: -8px; display: flex; gap: 10px; pointer-events: none; }
+.studs i { width: 18px; height: 8px; border-radius: 4px 4px 0 0; background: linear-gradient(var(--gloss), transparent) var(--c); box-shadow: inset 0 0 0 1px var(--rim); }
+.ghosty .studs { top: -10px; left: 10px; }
+.ghosty .studs i { background: var(--surface); box-shadow: inset 0 0 0 2px var(--edge); }
+.mini { display: inline-flex; align-items: center; padding: 3px 9px 5px; border-radius: 6px; font: 600 14px/1.25 var(--display); }
+
+/* HUD */
+.hud { position: sticky; top: var(--hud-top); z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--lift); }
+.hud-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.score { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; font-family: var(--display); }
+.score-n { display: inline-block; min-width: 1.25em; text-align: right; font: 800 40px/1 var(--display); font-variant-numeric: tabular-nums; }
+.score-n.bump { animation: bump 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes bump { 40% { transform: scale(1.28); } }
+.score-of { font: 700 18px/1.1 var(--display); color: var(--muted); }
+.score-of small { display: block; font: 500 14px/1.2 var(--body); }
+.hud-mid { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.meter { display: grid; grid-template-columns: repeat(var(--n, 10), minmax(0, 1fr)); gap: 4px; height: 14px; }
+.meter i { position: relative; border-radius: 4px; background: var(--well); }
+.meter i.on { background: var(--c); box-shadow: inset 0 -3px 0 var(--shade), inset 0 0 0 2px var(--edge); }
+.meter i.landed { animation: seg 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) var(--delay, 0ms) backwards; }
+@keyframes seg { 0% { transform: scaleY(0.2); background: var(--well); } 60% { transform: scaleY(1.6); } }
+.hint { font-size: 15px; color: var(--muted); }
+.hint b { color: var(--fg); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px; border: 2px solid var(--line-strong); background: var(--surface); color: var(--fg); font: 600 15px/1 var(--display); cursor: pointer; transition: transform 0.12s, background-color 0.12s; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.primary { background: var(--go); border-color: var(--go); color: var(--on-go); box-shadow: inset 0 -4px 0 var(--shade); }
+.btn.ghost { border-color: transparent; color: var(--muted); }
+.btn.ghost:hover:not(:disabled) { background: var(--well); color: var(--fg); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.hud.done { border-color: var(--edge-logic); box-shadow: 0 0 0 3px color-mix(in srgb, var(--logic) 45%, transparent), var(--lift); }
+.hud.done .score-n { color: var(--edge-logic); }
+.strip-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--line); }
+.strip-h { font: 700 14px var(--display); color: var(--muted); white-space: nowrap; }
+.strip { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 11px 4px 6px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: thin; }
+.strip li { flex: none; }
+.strip { mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 24px), transparent); }
+.sb { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 9px; border: 0; border-radius: 7px; font: 600 14px/1.2 var(--display); white-space: nowrap; cursor: pointer; }
+.sb .studs { top: -6px; left: 9px; gap: 7px; }
+.sb .studs i { width: 12px; height: 6px; }
+.sb .num { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.sb[aria-current="true"] { outline: 3px solid var(--fg); outline-offset: 2px; }
+.strip-empty { padding: 3px 0; font-size: 15px; color: var(--muted); white-space: nowrap; }
+
+/* Board */
+.board { display: grid; grid-template-columns: 290px minmax(0, 1fr) 420px; gap: 20px; align-items: start; }
+
+/* Tray */
+.tray-box { min-width: 0; }
+.tray { display: flex; flex-direction: column; gap: 18px; }
+.tg { display: flex; flex-direction: column; gap: 6px; }
+.tg-h { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.tg-n { padding: 1px 9px; border-radius: 999px; background: var(--well); color: var(--muted); font-size: 14px; }
+.tg-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--go); animation: beacon 1.8s ease-out infinite; }
+@keyframes beacon { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--go) 45%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.tg-note { font-size: 14px; color: var(--muted); }
+.bricks { list-style: none; margin: 0; padding: 10px 0 0; display: flex; flex-direction: column; gap: 20px; }
+.brick { position: relative; width: 100%; display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 11px 14px 13px; border: 2px solid transparent; border-radius: 9px; font: inherit; cursor: grab; touch-action: manipulation; transition: transform 0.15s ease; }
+.brick.ghosty { border-style: dashed; border-color: var(--edge); cursor: help; }
+.brick.fits { box-shadow: inset 0 -5px 0 var(--shade), inset 0 0 0 1px var(--rim), var(--lift); }
+.brick.fits::after { content: ""; position: absolute; inset: -6px; border-radius: 13px; border: 3px solid var(--edge); opacity: 0; pointer-events: none; animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: 0.55; } }
+.brick.fits:hover { transform: translateY(-3px) rotate(-0.6deg); }
+.brick.locked:hover { border-style: solid; }
+.brick:active { cursor: grabbing; }
+.brick.dragging { opacity: 0.35; }
+.brick.wanted { outline: 3px solid var(--fg); outline-offset: 5px; }
+.brick.nudge { animation: nudge 0.4s; }
+@keyframes nudge { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.brick.back { animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.brick.unlocked { animation: unlock 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s backwards; }
+@keyframes unlock { 0% { transform: scale(0.6) rotate(-4deg); opacity: 0; } 70% { transform: scale(1.06) rotate(1deg); opacity: 1; } }
+.brick.flash { animation: flash 1s; }
+@keyframes flash { 30% { outline: 3px solid var(--focus); outline-offset: 5px; } }
+.b-name { font: 600 16px/1.25 var(--display); }
+.b-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 14px; }
+.ghosty .b-meta { color: var(--muted); }
+.b-state { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.ghosty .b-state { color: var(--fg); }
+.p-tools { display: none; flex-wrap: wrap; gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); }
+.p-tools .btn { flex: 1 1 auto; }
+.p-alt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 15px; color: var(--muted); }
+.tray-done { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; background: var(--surface); border: 2px solid var(--edge-logic); }
+.tray-done h3 { display: flex; align-items: center; gap: 6px; font-size: 20px; font-weight: 800; }
+.tray-done p { color: var(--muted); }
+
+/* Baseplate */
+.build { position: relative; min-width: 0; padding: 18px; border-radius: 22px; border: 1px solid var(--line); background: radial-gradient(circle, var(--stud) 0 3.5px, transparent 4px) 0 0 / 22px 22px, var(--plate); }
+.build.drag-over { outline: 3px dashed var(--focus); outline-offset: -9px; }
+#screens { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.band { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.band-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.band-h h3 { font-size: 17px; font-weight: 700; }
+.band-h p { font-size: 14px; color: var(--muted); }
+.lane { display: flex; flex-direction: column; gap: 4px; }
+.slots { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 10px; padding-top: 10px; }
+.slot { position: relative; display: flex; flex-direction: column; gap: 6px; max-width: 100%; padding: 9px 12px 11px; border-radius: 8px; text-align: left; font: inherit; }
+.slot.ghosty { color: var(--muted); }
+.slot.solid { border: 2px solid transparent; cursor: pointer; }
+.s-name { font: 600 15px/1.25 var(--display); }
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font: 400 14px/1.35 var(--body); }
+.checks li { display: flex; align-items: flex-start; gap: 6px; }
+.checks .ico { margin-top: 0.12em; }
+.slot.landed .checks li { animation: tick 0.35s ease-out calc(var(--delay, 0ms) + 280ms + var(--i) * 140ms) backwards; }
+@keyframes tick { 0% { opacity: 0; transform: translateX(-6px); } }
+
+.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; min-width: 0; }
+.screen-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--sunk); }
+.screen-bar .dots { display: flex; gap: 6px; }
+.screen-bar .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); opacity: 0.6; }
+.screen-bar .route { min-width: 0; font: 500 14px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.screen-bar .sname { margin-left: auto; font: 700 15px var(--display); }
+.screen-body { padding: 14px; }
+
+.rg { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 0 10px 10px; border: 2px dashed var(--line-strong); border-radius: 11px; background: var(--surface); }
+.rg-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 8px; margin: -2px -10px 0 -12px; }
+.rg-tag { min-width: 0; max-width: 100%; padding: 4px 9px 5px; border-radius: 10px 0 9px 0; background: var(--well); color: var(--muted); font: 500 14px/1.25 var(--mono); overflow-wrap: anywhere; }
+.rg-head .pill, .rg-head .badges { margin-top: 5px; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; margin-right: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 3px; border-radius: 999px; font: 600 14px/1.25 var(--display); }
+.pill.wait { border: 2px dashed var(--edge); color: var(--muted); background: var(--surface); }
+.pill.here { border: 2px solid transparent; }
+.badge { position: relative; padding: 2px 8px 3px; border-radius: 6px; border: 2px dashed var(--edge); background: var(--surface); color: var(--muted); font: 500 14px/1.25 var(--mono); }
+.badge.solid { border: 2px solid transparent; cursor: pointer; }
+.rg[data-state="empty"] .mk { color: var(--muted); }
+.rg[data-state="empty"] .mk-button { border-style: dashed; }
+.rg[data-state="filled"] { border-style: solid; border-color: var(--edge); background: color-mix(in srgb, var(--c) 9%, var(--surface)); cursor: pointer; }
+.rg[data-state="filled"] > .rg-head > .rg-tag { background: var(--c); color: var(--on); }
+.rg[data-state="existing"] { border: 2px solid var(--line); background: var(--sunk); }
+.rg.sel, .slot.sel, .badge.sel { outline: 3px solid var(--edge); outline-offset: 3px; }
+.rg.target, .slot.target, .badge.target { outline: 3px dashed var(--edge); outline-offset: 4px; background: color-mix(in srgb, var(--c) 14%, var(--surface)); }
+.rg-kids, .group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rg-kids[data-dir="row"], .group[data-dir="row"] { flex-direction: row; flex-wrap: wrap; align-items: stretch; }
+.rg-kids[data-dir="row"] > *, .group[data-dir="row"] > * { flex: 1 1 150px; }
+.mk { font-size: 15px; overflow-wrap: anywhere; }
+.mk-heading { font: 700 17px/1.25 var(--display); }
+.mk-strong { font-weight: 700; }
+.mk-muted { color: var(--muted); }
+.mk-button { text-align: center; border: 2px solid var(--line-strong); border-radius: 999px; padding: 6px 12px; font-weight: 700; }
+.mk-chip { align-self: flex-start; max-width: 100%; border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 7px; font: 14px/1.35 var(--mono); }
+
+/* The snap: a landed piece drops in, then a ring of its colour spreads out */
+.landed { animation: snap 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) var(--delay, 0ms) backwards; }
+@keyframes snap { 0% { transform: translateY(-16px) scale(1.04); opacity: 0.3; } 60% { transform: translateY(2px) scale(0.995); opacity: 1; } }
+.landed::after, .ping::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none; }
+.landed::after { animation: ring 0.9s ease-out calc(var(--delay, 0ms) + 180ms) backwards; }
+.ping::after { animation: ring 0.8s ease-out 2; }
+@keyframes ring { 0% { box-shadow: 0 0 0 0 var(--glow); } 100% { box-shadow: 0 0 0 22px transparent; } }
+@keyframes pop { 0% { transform: scale(0.5) translateY(8px); opacity: 0; } }
+.sb.landed { animation-name: pop; }
+.flyer { position: fixed; z-index: 45; display: flex; flex-direction: column; justify-content: center; padding: 11px 14px 13px; border-radius: 9px; pointer-events: none; box-shadow: inset 0 -5px 0 var(--shade), 0 18px 30px var(--shade); }
+
+/* Panel: what just landed */
+.panel { min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.p-head { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.p-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.p-eyebrow { display: inline-flex; align-items: center; gap: 6px; font: 700 14px var(--display); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.p-eyebrow.fresh { color: var(--fg); }
+.p-brick { position: relative; margin: 10px 0 0; padding: 12px 16px 15px; border: 2px solid transparent; border-radius: 10px; font: 700 22px/1.2 var(--display); }
+.p-brick.ghosty { border-style: dashed; }
+.p-brick .studs { top: -9px; left: 16px; gap: 12px; }
+.p-brick .studs i { width: 22px; height: 9px; }
+.p-plain { font-size: 24px; font-weight: 800; }
+#p-title:focus { outline: none; }
+.job { font-size: 17px; }
+.where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 15px; color: var(--muted); }
+.show { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0; border: 0; background: none; color: var(--focus); font: 600 15px var(--display); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.p-toggle { display: none; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line-strong); background: var(--surface); color: var(--fg); font: 600 14px var(--display); cursor: pointer; }
+.panel.open .p-toggle .ico { transform: rotate(180deg); }
+.p-more { display: flex; flex-direction: column; gap: 18px; }
+.p-more section { display: flex; flex-direction: column; gap: 8px; }
+.rel { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 6px; padding-top: 4px; }
+.rel-h { min-width: 4.8em; font-size: 14px; color: var(--muted); }
+.link-chip { position: relative; padding: 5px 10px 7px; border: 2px solid transparent; border-radius: 7px; font: 600 14px/1.2 var(--display); cursor: pointer; }
+.link-chip.ghosty { border-style: dashed; }
+.none { font-size: 15px; color: var(--muted); }
+.needs { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--sunk); border: 1px solid var(--line); }
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 12px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+.steps li::before { content: counter(s); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--go); color: var(--on-go); font: 800 15px var(--display); box-shadow: inset 0 -3px 0 var(--shade); }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.legend li { display: flex; align-items: center; gap: 10px; }
+.swatch { position: relative; width: 34px; height: 20px; flex: none; border-radius: 5px; border: 2px solid transparent; }
+.swatch.ghosty { border-style: dashed; }
+.swatch.wait { border: 2px dashed var(--line-strong); background: var(--surface); }
+.swatch.have { border: 2px solid var(--line); background: var(--sunk); }
+details summary { cursor: pointer; font-size: 15px; color: var(--muted); }
+.files { margin: 6px 0 0; padding-left: 1.1em; font: 14px/1.6 var(--mono); overflow-wrap: anywhere; }
+
+.code { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--code-bg); }
+.code + .code { margin-top: 8px; }
+.code-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); font: 14px var(--mono); color: var(--muted); }
+.code-head a { overflow-wrap: anywhere; }
+.code pre { margin: 0; padding: 8px 0; font: 14px/1.55 var(--mono); font-variant-ligatures: none; white-space: pre-wrap; }
+.code pre code { display: block; background: none; border: 0; padding: 0; font: inherit; }
+.ln { display: grid; grid-template-columns: 3.1em 1.4em minmax(0, 1fr); padding-right: 10px; }
+.ln.add { background: var(--add); }
+.ln .n { color: var(--muted); text-align: right; padding-right: 6px; user-select: none; font-variant-numeric: tabular-nums; }
+.ln .m { color: var(--add-mark); text-align: center; user-select: none; }
+.ln .t { overflow-wrap: anywhere; }
+.ln.ctx .t { opacity: 0.68; }
+.sx-kw { color: var(--sx-kw); } .sx-str { color: var(--sx-str); } .sx-cm { color: var(--sx-cm); font-style: italic; }
+.sx-tag { color: var(--sx-tag); } .sx-num { color: var(--sx-num); }
+.crop { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.crop .frame { width: 100%; max-width: 100%; border: 1px solid var(--line); border-radius: 10px; background-repeat: no-repeat; background-color: var(--surface); }
+figcaption { font-size: 14px; color: var(--muted); }
+
+/* Waiting pieces keep their dashed edge whatever base border a component sets */
+.ghosty { border: 2px dashed var(--edge); }
+.brick.locked:hover { border-style: solid; }
+
+/* Tooltip on tray bricks */
+.tip { position: fixed; z-index: 50; width: max-content; max-width: min(300px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; padding: 11px 13px; border-radius: 12px; background: var(--tip-bg); color: var(--tip-fg); font-size: 15px; line-height: 1.4; box-shadow: var(--lift); pointer-events: none; }
+.tip::before { content: ""; position: absolute; width: 12px; height: 12px; background: inherit; transform: rotate(45deg); }
+.tip[data-side="right"]::before { left: -5px; top: var(--a, 16px); }
+.tip[data-side="below"]::before { top: -5px; left: var(--a, 20px); }
+.tip code { background: transparent; border-color: color-mix(in srgb, var(--tip-fg) 35%, transparent); color: inherit; }
+.tip-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* How it all fits */
+.final { display: flex; flex-direction: column; gap: 18px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; }
+.final:not(.open) { border-style: dashed; border-width: 2px; background: transparent; }
+.final-head { display: flex; flex-direction: column; gap: 4px; }
+.final-kicker { display: inline-flex; align-items: center; gap: 6px; font: 800 14px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.final.open .final-kicker { color: var(--edge-logic); }
+.final-head h2 { font-size: clamp(1.5rem, 1.1rem + 1.2vw, 2.1rem); font-weight: 800; }
+.final { scroll-margin-top: calc(var(--hud-top) + var(--hud-h) + 16px); }
+#final-h:focus { outline: none; }
+#final-status { color: var(--muted); }
+.final:not(.open) .final-body { visibility: hidden; height: 0; overflow: hidden; }
+.final-body { display: flex; flex-direction: column; gap: 24px; }
+.final-body > section { display: flex; flex-direction: column; gap: 10px; }
+.summary { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; max-width: 76ch; font-size: 17px; }
+.compose { display: flex; flex-direction: column; gap: 16px; }
+.compose-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: start; }
+.diagram { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
+.diagram pre { margin: 0; font: 14px/1.5 var(--mono); }
+.order { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 16px 8px; counter-reset: o; }
+.order li { counter-increment: o; position: relative; padding: 6px 11px 9px; border-radius: 7px; font: 600 14px/1.2 var(--display); }
+.order li::before { content: counter(o) "  "; opacity: 0.8; font-variant-numeric: tabular-nums; white-space: pre; }
+.again { align-self: flex-start; }
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 60; pointer-events: none; }
+/* Wires: after a brick lands, a line draws in from each brick it uses, and a dot rides along it */
+#wires { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 44; pointer-events: none; overflow: hidden; }
+#wires path { fill: none; stroke: var(--edge); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 0.55s ease-out forwards; }
+#wires circle { fill: var(--edge); }
+#wires.out { opacity: 0; transition: opacity 0.4s; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.btn.watch[aria-pressed="true"] { background: var(--well); color: var(--fg); }
+
+@media (min-width: 761px) {
+  .tray-box { position: sticky; top: calc(var(--hud-top) + var(--hud-h) + 14px); max-height: calc(100vh - var(--hud-top) - var(--hud-h) - 28px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin-left: -8px; padding: 2px 10px 18px 8px; }
+}
+@media (min-width: 1181px) {
+  .app { padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  .panel { position: sticky; top: calc(var(--hud-top) + var(--hud-h) + 14px); max-height: calc(100vh - var(--hud-top) - var(--hud-h) - 28px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+}
+@media (max-width: 1400px) {
+  .board { grid-template-columns: 260px minmax(0, 1fr) 380px; }
+}
+@media (max-width: 1180px) {
+  .board { grid-template-columns: 250px minmax(0, 1fr); }
+  .app { padding-bottom: calc(var(--sheet-h) + 32px); }
+  .panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; max-height: min(78vh, 760px); overflow-y: auto; overscroll-behavior: contain; gap: 14px; border-width: 1px 0 0; border-radius: 22px 22px 0 0; padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); box-shadow: 0 -12px 32px var(--shade); }
+  .panel > * { width: 100%; max-width: 760px; margin-inline: auto; }
+  .panel:not(.open) .p-more { display: none; }
+  .panel { transition: transform 0.3s ease; }
+  .at-final .panel:not(.open) { transform: translateY(100%); } /* the sheet steps aside while you read the finale */
+  .p-toggle { display: inline-flex; }
+  .p-brick { font-size: 19px; }
+  .p-plain { font-size: 20px; }
+  .job { font-size: 16px; }
+}
+@media (max-width: 760px) {
+  .board { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .lede { font-size: 16px; }
+  .hud { padding: 10px 12px; gap: 8px; border-radius: 16px; }
+  .hud-row { gap: 8px 12px; }
+  .score-n { font-size: 30px; }
+  .score-of small { display: none; }
+  .hud-mid { order: 3; flex: 1 1 100%; }
+  .meter { height: 10px; }
+  .hint, .strip-row, .hud #watch, .hud #all, .hud #reset { display: none; }
+  .hud .controls { flex: 1; justify-content: flex-end; gap: 6px; }
+  .hud .controls .btn { min-height: 42px; padding: 0 14px; font-size: 15px; }
+  .p-tools { display: flex; }
+  .panel:not(.open) .p-tools, .panel:not(.open) .where { display: none; }
+  .tray-box { position: sticky; top: calc(var(--hud-top) + var(--hud-h)); z-index: 15; margin-inline: -6px; padding: 6px 6px 0; background: var(--bg); box-shadow: 0 10px 12px -12px var(--shade); }
+  .tray { flex-direction: row; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; padding: 4px 2px 12px; }
+  .tg { position: relative; flex-direction: row; flex: none; }
+  .tg-h, .tg-note { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tg-locked { padding-left: 12px; border-left: 2px dashed var(--line-strong); }
+  .bricks { flex-direction: row; gap: 10px; }
+  .bricks li { flex: 0 0 156px; display: flex; scroll-snap-align: start; }
+  .brick { padding: 9px 12px 11px; }
+  .b-name { font-size: 15px; }
+  .b-size { display: none; }
+  .build { padding: 10px; border-radius: 16px; }
+  .band { padding: 12px; }
+  .screen-body { padding: 10px; }
+  .rg { padding: 0 8px 8px; }
+  .rg-head { margin: -2px -8px 0 -10px; }
+  .final { padding: 16px; }
+}
+@media (hover: none) { kbd { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1 id="title"></h1>
+    <p class="lede">Snap this pull request back together. Pick a glowing brick and watch it land on the screen it builds. The panel tells you what it adds. When the last brick lands, you see the whole feature.</p>
+  </header>
+
+  <div class="hud" id="hud">
+    <div class="hud-row">
+      <div class="score" aria-hidden="true"><span class="score-n" id="count">0</span><span class="score-of">/ <span id="total"></span><small>bricks placed</small></span></div>
+      <div class="hud-mid">
+        <div class="meter" id="meter" aria-hidden="true"></div>
+        <p class="hint" id="hint"></p>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="next" type="button"></button>
+        <button class="btn" id="undo" type="button">Undo <kbd>U</kbd></button>
+        <button class="btn ghost watch" id="watch" type="button" aria-pressed="false">Watch it build</button>
+        <button class="btn ghost" id="all" type="button">Place all</button>
+        <button class="btn ghost" id="reset" type="button">Start over</button>
+      </div>
+    </div>
+    <div class="strip-row"><span class="strip-h" id="stack-h">Your build</span><ol class="strip" id="stack" aria-labelledby="stack-h"></ol></div>
+  </div>
+
+  <main class="board">
+    <section class="tray-box" id="tray-box" aria-labelledby="tray-h">
+      <h2 id="tray-h" class="sr-only">Tray</h2>
+      <div class="tray" id="tray"></div>
+    </section>
+    <section class="build" id="build" aria-labelledby="build-h">
+      <h2 id="build-h" class="sr-only">Baseplate</h2>
+      <div id="screens"></div>
+    </section>
+    <aside class="panel" id="panel" aria-label="About this brick"></aside>
+  </main>
+
+  <section class="final" id="final" aria-labelledby="final-h">
+    <div class="final-head"><p class="final-kicker" id="final-kicker"></p><h2 id="final-h" tabindex="-1">How it all fits</h2><p id="final-status"></p></div>
+    <div class="final-body">
+      <section><h4>In five lines</h4><ol class="summary" id="summary"></ol></section>
+      <section><h4>The finished screen</h4><div class="compose" id="compose"></div></section>
+      <section><h4>What depends on what</h4><div class="diagram"><pre class="mermaid">flowchart TB
+  subgraph L_logic["Logic"]
+    n1["Tooltip leaves with its item"]
+    n2["showTooltip() for any element"]
+    n3["Escape clears the search"]
+  end
+  subgraph L_ui["Screen"]
+    n4["Named card styles"]
+    n5["Name under the preview"]
+    n6["Two-column grid style"]
+    n7["Grid showNames switch"]
+    n8["Steady scrollbar space"]
+  end
+  subgraph L_wiring["Wiring"]
+    n9["Name tooltip on hover"]
+    n10["Section passes names down"]
+    n11["Search results show names"]
+  end
+  subgraph L_test["Tests"]
+    n12["Escape tests"]
+  end
+  n1 --&gt; n2
+  n4 --&gt; n5
+  n6 --&gt; n7
+  n2 --&gt; n9
+  n5 --&gt; n9
+  n5 --&gt; n10
+  n7 --&gt; n11
+  n10 --&gt; n11
+  n3 --&gt; n12
+</pre></div><figcaption>Arrows show direct steps. Each brick also rests on everything above it.</figcaption></section>
+      <section><h4>The order it was built in</h4><ol class="order" id="order"></ol></section>
+      <div class="controls"><button class="btn primary" id="rewatch" type="button">Watch it build again</button><button class="btn" id="again" type="button">Build it yourself again</button></div>
+    </div>
+  </section>
+  <p class="sr-only" id="live" aria-live="polite"></p>
+</div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<canvas id="confetti" hidden></canvas>
+<svg id="wires" aria-hidden="true" hidden></svg>
+
+<script type="application/json" id="bricks-data">{"title":"Library search shows item names","pr":{"number":12173,"url":"https://github.com/excalidraw/excalidraw/pull/12173","title":"feat(editor): better library search + display names","head":"2cd95915a83deea25e15d9d48294a4f311d291c4","branch":"dwelle/library-improvements","additions":253,"deletions":22,"files":7},"skip":[],"bricks":[{"id":"tooltip-cleanup","layer":"logic","name":"Tooltip leaves with its item","job":"A visible tooltip hides itself when the thing it points at disappears.","adds":"When a hovered item is removed (filtered out by search, or the sidebar closes), no `pointerleave` fires, so the old tooltip used to stay on screen. Now a `MutationObserver` watches the page while a tooltip is open and hides it once its item is gone. The observer only exists while a tooltip is visible, so it costs nothing when idle.","connects":"Lives inside the existing tooltip code. `hideTooltip` is now exported so other components can use it.","deps":[],"ranges":[{"file":"packages/excalidraw/components/Tooltip.tsx","start":73,"end":85,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R73"},{"file":"packages/excalidraw/components/Tooltip.tsx","start":106,"end":116,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R106"}],"key":[{"file":"packages/excalidraw/components/Tooltip.tsx","start":106,"end":115,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R106","lines":[{"n":106,"text":"  tooltipItemObserver?.disconnect();","add":true},{"n":107,"text":"  tooltipItemObserver = new MutationObserver(() => {","add":true},{"n":108,"text":"    if (!item.isConnected) {","add":true},{"n":109,"text":"      hideTooltip();","add":true},{"n":110,"text":"    }","add":true},{"n":111,"text":"  });","add":true},{"n":112,"text":"  tooltipItemObserver.observe(document.body, {","add":true},{"n":113,"text":"    childList: true,","add":true},{"n":114,"text":"    subtree: true,","add":true},{"n":115,"text":"  });","add":true}]}],"size":19},{"id":"show-tooltip","layer":"logic","name":"showTooltip() for any element","job":"A function that shows the tooltip on any element, above or below it, with an optional delay.","adds":"Before, a tooltip only worked by wrapping something in `\u003cTooltip>`. The show logic moves into `showTooltip()` so a library card can call it directly, and it gains `position: \"top\"`. The delay is skipped when another tooltip closed a moment ago, so moving across items feels instant.","connects":"Calls `updateTooltip`, which starts the cleanup observer from the brick before. `\u003cTooltip>` itself now uses it too.","deps":["tooltip-cleanup"],"ranges":[{"file":"packages/excalidraw/components/Tooltip.tsx","start":88,"end":98,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R88"},{"file":"packages/excalidraw/components/Tooltip.tsx","start":101,"end":105,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R101"},{"file":"packages/excalidraw/components/Tooltip.tsx","start":118,"end":150,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R118"},{"file":"packages/excalidraw/components/Tooltip.tsx","start":176,"end":184,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R176"}],"key":[{"file":"packages/excalidraw/components/Tooltip.tsx","start":136,"end":147,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-5520a6dac6ef82f6b4a5cfdfea30dabcf261ec27730cf48e624b6c9fa64d65f8R136","lines":[{"n":136,"text":"  const show = () => {","add":true},{"n":137,"text":"    // item may have been unmounted while the delayed tooltip was pending","add":true},{"n":138,"text":"    if (item.isConnected) {","add":true},{"n":139,"text":"      updateTooltip(item, getTooltipDiv(), label, long, position);","add":true},{"n":140,"text":"    }","add":true},{"n":141,"text":"  };","add":true},{"n":142,"text":"  clearTimeout(showTooltipTimer);","add":true},{"n":143,"text":"  if (delay && Date.now() - tooltipHiddenAt > TOOLTIP_WARM_WINDOW) {","add":true},{"n":144,"text":"    showTooltipTimer = window.setTimeout(show, TOOLTIP_DELAY);","add":true},{"n":145,"text":"  } else {","add":true},{"n":146,"text":"    show();","add":true},{"n":147,"text":"  }","add":true}]}],"size":36},{"id":"escape-clears","layer":"logic","name":"Escape clears the search","job":"Pressing Escape in the search box clears the search instead of closing the sidebar.","adds":"The sidebar listens for Escape to close itself. When there is search text, the search box now handles Escape first: it clears the text and stops the key from reaching the sidebar. A second Escape, with the box empty, still closes the sidebar.","connects":"Added to the existing `TextField` search box in `LibraryMenuItems`.","deps":[],"ranges":[{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":9,"end":14,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR9"},{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":407,"end":415,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR407"}],"key":[{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":407,"end":415,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR407","lines":[{"n":407,"text":"            onKeyDown={(event) => {","add":true},{"n":408,"text":"              // clear the search ourselves and stop the event, or the","add":true},{"n":409,"text":"              // sidebar's Escape listener closes an undocked sidebar","add":true},{"n":410,"text":"              if (event.key === KEYS.ESCAPE && searchInputValue) {","add":true},{"n":411,"text":"                event.preventDefault();","add":true},{"n":412,"text":"                event.stopPropagation();","add":true},{"n":413,"text":"                setSearchInputValue(\"\");","add":true},{"n":414,"text":"              }","add":true},{"n":415,"text":"            }}","add":true}]}],"size":15},{"id":"card-styles","layer":"ui","name":"Named card styles","job":"Styles for a bigger library card: a square preview with the name underneath.","adds":"A named card fills its grid cell and stays square. The preview takes the space left over, and the name gets one line of small text, cut off with an ellipsis when it is too long.","connects":"Plain CSS. The card markup in the next brick uses these class names.","deps":[],"ranges":[{"file":"packages/excalidraw/components/LibraryUnit.scss","start":66,"end":105,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-d3b4312d25220c75c7631ba54e37aa83b7c6442bdff1d39715a31ed76c4f717fR66"}],"key":[{"file":"packages/excalidraw/components/LibraryUnit.scss","start":94,"end":105,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-d3b4312d25220c75c7631ba54e37aa83b7c6442bdff1d39715a31ed76c4f717fR94","lines":[{"n":94,"text":"  .library-unit__name {","add":true},{"n":95,"text":"    flex: none;","add":true},{"n":96,"text":"    width: 100%;","add":true},{"n":97,"text":"    font-size: 0.75rem;","add":true},{"n":98,"text":"    line-height: 1rem;","add":true},{"n":99,"text":"    height: 1rem;","add":true},{"n":100,"text":"    text-align: center;","add":true},{"n":101,"text":"    white-space: nowrap;","add":true},{"n":102,"text":"    overflow: hidden;","add":true},{"n":103,"text":"    text-overflow: ellipsis;","add":true},{"n":104,"text":"    color: var(--text-primary-color);","add":true},{"n":105,"text":"  }","add":true}]}],"size":36},{"id":"name-below","layer":"ui","name":"Name under the preview","job":"A library card can render its name below the drawing.","adds":"`LibraryUnit` takes a `name` and a `showName` flag. With the flag on, the drawing goes into a `library-unit__preview` box and the name sits under it. The loading placeholder gets the same size so the grid doesn't jump when items appear.","connects":"Uses the class names from Named card styles.","deps":["card-styles"],"ranges":[{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":19,"end":20,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R19"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":30,"end":32,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R30"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":59,"end":59,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R59"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":89,"end":90,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R89"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":111,"end":118,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R111"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":132,"end":137,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R132"}],"key":[{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":111,"end":118,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R111","lines":[{"n":111,"text":"        >","add":true},{"n":112,"text":"          {showName && (","add":true},{"n":113,"text":"            \u003c>","add":true},{"n":114,"text":"              \u003cdiv className=\"library-unit__preview\" ref={ref} />","add":true},{"n":115,"text":"              \u003cdiv className=\"library-unit__name\">{name}\u003c/div>","add":true},{"n":116,"text":"            \u003c/>","add":true},{"n":117,"text":"          )}","add":true},{"n":118,"text":"        \u003c/div>","add":true}]}],"size":22},{"id":"grid-style","layer":"ui","name":"Two-column grid style","job":"A grid style with two wide columns for named cards.","adds":"The normal library grid has four small columns. The `--named` variant has two, so each card is big enough to read its name. `minmax(0, 1fr)` stops a long name from stretching its column.","connects":"Plain CSS, switched on by the next brick.","deps":[],"ranges":[{"file":"packages/excalidraw/components/LibraryMenuItems.scss","start":121,"end":128,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-1833276b4798c0c5a43b1a5c4b096932baaa412e042f16ea991a8952ec859a96R121"}],"key":[{"file":"packages/excalidraw/components/LibraryMenuItems.scss","start":121,"end":128,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-1833276b4798c0c5a43b1a5c4b096932baaa412e042f16ea991a8952ec859a96R121","lines":[{"n":121,"text":"      &--named {","add":true},{"n":122,"text":"        // items are sized by the grid (not fixed like the default ones), so","add":true},{"n":123,"text":"        // don't let it shrink to its content (e.g. only placeholders yet)","add":true},{"n":124,"text":"        width: 100%;","add":true},{"n":125,"text":"        // minmax so long (nowrap) names don't widen the columns","add":true},{"n":126,"text":"        grid-template-columns: repeat(2, minmax(0, 1fr));","add":true},{"n":127,"text":"        grid-gap: 0.5rem;","add":true},{"n":128,"text":"      }","add":true}]}],"size":8},{"id":"grid-switch","layer":"ui","name":"Grid showNames switch","job":"The library grid component turns on the two-column style when asked.","adds":"`LibraryMenuSectionGrid` takes a `showNames` prop and adds the `--named` class when it is set. Without the prop, the grid is unchanged.","connects":"Applies the class from Two-column grid style.","deps":["grid-style"],"ranges":[{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":1,"end":1,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R1"},{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":36,"end":50,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R36"}],"key":[{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":42,"end":50,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R42","lines":[{"n":42,"text":"  return (","add":true},{"n":43,"text":"    \u003cdiv","add":true},{"n":44,"text":"      className={clsx(\"library-menu-items-container__grid\", {","add":true},{"n":45,"text":"        \"library-menu-items-container__grid--named\": showNames,","add":true},{"n":46,"text":"      })}","add":true},{"n":47,"text":"    >","add":true},{"n":48,"text":"      {children}","add":true},{"n":49,"text":"    \u003c/div>","add":true},{"n":50,"text":"  );","add":true}]}],"size":13},{"id":"steady-scrollbar","layer":"ui","name":"Steady scrollbar space","job":"The item list keeps room for its scrollbar so the content doesn't shift while you type.","adds":"Searching makes the list grow and shrink, so the scrollbar kept appearing and vanishing and the cards jumped sideways. `scrollbar-gutter: stable` reserves that space all the time.","connects":"One CSS line on the existing items list.","deps":[],"ranges":[{"file":"packages/excalidraw/components/LibraryMenuItems.scss","start":80,"end":82,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-1833276b4798c0c5a43b1a5c4b096932baaa412e042f16ea991a8952ec859a96R80"}],"key":[{"file":"packages/excalidraw/components/LibraryMenuItems.scss","start":80,"end":82,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-1833276b4798c0c5a43b1a5c4b096932baaa412e042f16ea991a8952ec859a96R80","lines":[{"n":80,"text":"      // reserve the (thin) scrollbar's space so the content doesn't shift","add":true},{"n":81,"text":"      // when it starts/stops overflowing (e.g. while searching)","add":true},{"n":82,"text":"      scrollbar-gutter: stable;","add":true}]}],"size":3},{"id":"name-tooltip","layer":"wiring","name":"Name tooltip on hover","job":"Hovering a named library item shows its name in a tooltip above it.","adds":"The card calls `showTooltip` on pointer enter and `hideTooltip` on leave or press. It uses pointer events, not mouse events, so a touch tap doesn't leave the tooltip stuck. When the name is already visible under the card and not cut off, it skips the tooltip.","connects":"Calls `showTooltip` and `hideTooltip` from the tooltip bricks, and checks the `library-unit__name` box from Name under the preview.","deps":["show-tooltip","name-below"],"ranges":[{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":9,"end":9,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R9"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":46,"end":47,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R46"},{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":63,"end":83,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R63"}],"key":[{"file":"packages/excalidraw/components/LibraryUnit.tsx","start":65,"end":80,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-0f9dadbec6075c570a744d6baccb214db5434a94501df883023d72435df0d045R65","lines":[{"n":65,"text":"        onPointerEnter={","add":true},{"n":66,"text":"          hasName","add":true},{"n":67,"text":"            ? (event) => {","add":true},{"n":68,"text":"                const nameEl = showName","add":true},{"n":69,"text":"                  ? event.currentTarget.querySelector(\".library-unit__name\")","add":true},{"n":70,"text":"                  : null;","add":true},{"n":71,"text":"                // name is already shown below the item, unless truncated","add":true},{"n":72,"text":"                if (nameEl && nameEl.scrollWidth \u003c= nameEl.clientWidth) {","add":true},{"n":73,"text":"                  return;","add":true},{"n":74,"text":"                }","add":true},{"n":75,"text":"                showTooltip(event.currentTarget, name!, {","add":true},{"n":76,"text":"                  delay: true,","add":true},{"n":77,"text":"                  position: \"top\",","add":true},{"n":78,"text":"                });","add":true},{"n":79,"text":"              }","add":true},{"n":80,"text":"            : undefined","add":true}]}],"size":23},{"id":"section-names","layer":"wiring","name":"Section passes names down","job":"The library section hands each item its name and the showNames flag.","adds":"`LibraryMenuSection` gets a `showNames` prop and passes it, plus the item's `name`, to every card and to the loading placeholders.","connects":"Feeds the `name` and `showName` props that Name under the preview added.","deps":["name-below"],"ranges":[{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":30,"end":31,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R30"},{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":62,"end":62,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R62"},{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":85,"end":93,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R85"}],"key":[{"file":"packages/excalidraw/components/LibraryMenuSection.tsx","start":85,"end":93,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-24c0e00fb46a49d1654b5fe34267edc587e86513cab66fd3f76f21fd35621ec5R85","lines":[{"n":85,"text":"              name={\"name\" in item ? item.name : undefined}","add":true},{"n":86,"text":"              showName={showNames}","add":true},{"n":87,"text":"              selected={isItemSelected(item.id)}","add":false},{"n":88,"text":"              onToggle={onItemSelectToggle}","add":false},{"n":89,"text":"              onDrag={onItemDrag}","add":false},{"n":90,"text":"              key={item?.id ?? i}","add":false},{"n":91,"text":"            />","add":false},{"n":92,"text":"          ) : (","add":false},{"n":93,"text":"            \u003cEmptyLibraryUnit key={i} showName={showNames} />","add":true}]}],"size":6},{"id":"search-results","layer":"wiring","name":"Search results show names","job":"Only the search results turn names on.","adds":"Two words: `showNames` on the grid and on the section, in the branch that renders while searching. The normal library view keeps its compact four-column grid.","connects":"Switches on Grid showNames switch and Section passes names down.","deps":["grid-switch","section-names"],"ranges":[{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":354,"end":354,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR354"},{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":360,"end":364,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR360"}],"key":[{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":354,"end":354,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR354","lines":[{"n":354,"text":"        \u003cLibraryMenuSectionGrid showNames>","add":true}]},{"file":"packages/excalidraw/components/LibraryMenuItems.tsx","start":360,"end":364,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-dbacfba750c6cc8abe99be4d28252c5347e3e8799ac229674ac5f5b6af1181eeR360","lines":[{"n":360,"text":"            onClick={onItemClick}","add":false},{"n":361,"text":"            isItemSelected={isItemSelected}","add":false},{"n":362,"text":"            svgCache={svgCache}","add":false},{"n":363,"text":"            showNames","add":true},{"n":364,"text":"          />","add":false}]}],"size":2},{"id":"escape-tests","layer":"test","name":"Escape tests","job":"Two tests that Escape clears search or selection before it closes the sidebar.","adds":"The tests load a library with two items, `wall` and `door`, and open the sidebar. One types a search and presses Escape twice: the first clears the box, the second closes the sidebar. The other selects an item and checks Escape clears the selection and leaves the sidebar open.","connects":"Drives the search box from Escape clears the search.","deps":["escape-clears"],"ranges":[{"file":"packages/excalidraw/tests/library.test.tsx","start":5,"end":5,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-7023b23184c62fffeb9dbcb38c0eba1043c696614b93032b3dd4b1417a86667cR5"},{"file":"packages/excalidraw/tests/library.test.tsx","start":277,"end":335,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-7023b23184c62fffeb9dbcb38c0eba1043c696614b93032b3dd4b1417a86667cR277"}],"key":[{"file":"packages/excalidraw/tests/library.test.tsx","start":303,"end":316,"href":"https://github.com/excalidraw/excalidraw/pull/12173/files#diff-7023b23184c62fffeb9dbcb38c0eba1043c696614b93032b3dd4b1417a86667cR303","lines":[{"n":303,"text":"  it(\"should clear an active search instead of closing the sidebar\", async () => {","add":true},{"n":304,"text":"    const { searchInput } = await openLibraryWithItems();","add":true},{"n":305,"text":"","add":true},{"n":306,"text":"    fireEvent.change(searchInput, { target: { value: \"wall\" } });","add":true},{"n":307,"text":"    expect(searchInput.value).toBe(\"wall\");","add":true},{"n":308,"text":"","add":true},{"n":309,"text":"    fireEvent.keyDown(searchInput, { key: KEYS.ESCAPE });","add":true},{"n":310,"text":"    expect(h.state.openSidebar).not.toBe(null);","add":true},{"n":311,"text":"    expect(searchInput.value).toBe(\"\");","add":true},{"n":312,"text":"","add":true},{"n":313,"text":"    // with the search cleared, Escape closes the sidebar","add":true},{"n":314,"text":"    fireEvent.keyDown(searchInput, { key: KEYS.ESCAPE });","add":true},{"n":315,"text":"    expect(h.state.openSidebar).toBe(null);","add":true},{"n":316,"text":"  });","add":true}]}],"checks":["should clear an active search instead of closing the sidebar","should clear the item selection instead of closing the sidebar"],"size":53}],"screens":[{"name":"Library sidebar, searching","route":"Library sidebar","root":{"label":"LibraryMenuItems","existing":true,"dir":"col","children":[{"dir":"row","children":[{"label":"TextField (search)","existing":true,"lines":[{"text":"wall","look":"chip"},{"text":"Search library","look":"muted"}],"badges":[{"text":"onKeyDown: Escape","brick":"escape-clears"}]},{"label":"LibraryDropdownMenu","existing":true}]},{"label":"library-menu-items-container__items","existing":true,"badges":[{"text":"scrollbar-gutter","brick":"steady-scrollbar"}],"children":[{"label":"library-menu-items-container__header","existing":true,"lines":[{"text":"Library matches","look":"heading"},{"text":"esc to clear","look":"muted"}]},{"label":"LibraryMenuSectionGrid showNames","brick":"grid-switch","badges":[{"text":"--named","brick":"grid-style"},{"text":"showNames","brick":"search-results"}],"children":[{"label":"LibraryMenuSection","existing":true,"badges":[{"text":"name, showName","brick":"section-names"}],"dir":"row","children":[{"label":"LibraryUnit","brick":"name-below","badges":[{"text":"hover: tooltip","brick":"name-tooltip"}],"children":[{"label":"library-unit__preview","brick":"card-styles","lines":[{"text":"(drawing)","look":"muted"}]},{"label":"library-unit__name","brick":"card-styles","lines":[{"text":"wall","look":"strong"}]}]},{"label":"LibraryUnit","brick":"name-below","children":[{"label":"library-unit__preview","brick":"card-styles","lines":[{"text":"(drawing)","look":"muted"}]},{"label":"library-unit__name","brick":"card-styles","lines":[{"text":"door","look":"strong"}]}]}]}]}]},{"label":"excalidraw-tooltip","existing":true,"lines":[{"text":"a long library item name","look":"text"}],"badges":[{"text":"showTooltip(position: top)","brick":"show-tooltip"},{"text":"hides when item leaves","brick":"tooltip-cleanup"}]}]}}],"summary":["While you search the library, results now show as two columns of bigger cards with each item's name under its drawing.","Hovering any named item shows its name in a tooltip above it, built on a new `showTooltip()` that works on any element.","Tooltips now vanish when their item disappears, so filtering or closing the sidebar no longer leaves one stuck on screen.","Escape in the search box clears the search first, and only closes the sidebar once the box is empty.","The list keeps room for its scrollbar so cards don't jump as you type, and two tests pin the Escape behaviour."]}</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById('bricks-data').textContent);
+  const B = D.bricks;
+  const byId = {};
+  B.forEach((b) => { byId[b.id] = b; });
+  const order = {};
+  B.forEach((b, i) => { order[b.id] = i; });
+  const LAYERS = { data: 'Data', logic: 'Logic', ui: 'Screen', wiring: 'Wiring', test: 'Tests' };
+  const dependents = {};
+  B.forEach((b) => (b.deps || []).forEach((d) => { (dependents[d] = dependents[d] || []).push(b.id); }));
+
+  // Where each brick shows on a screen: the boxes it fills and the badges it adds.
+  const spots = {};
+  const addSpot = (id, s) => { (spots[id] = spots[id] || []).push(s); };
+  const walk = (r, screen) => {
+    if (r.brick) addSpot(r.brick, { label: r.label || '', screen });
+    (r.badges || []).forEach((g) => addSpot(g.brick, { label: g.text, on: r.label || '', screen }));
+    (r.children || []).forEach((c) => walk(c, screen));
+  };
+  D.screens.forEach((s) => walk(s.root, s.name));
+
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+  const code = (s) => `<code>${esc(s)}</code>`;
+  const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sheetMode = () => matchMedia('(max-width: 1180px)').matches;
+  const dockMode = () => matchMedia('(max-width: 760px)').matches;
+  const touch = () => matchMedia('(hover: none)').matches;
+  const KEY = 'bricks:' + D.pr.url;
+  const FLY = 560;
+  const isPlaced = (id) => placed.includes(id);
+  const missing = (id) => (byId[id].deps || []).filter((d) => !isPlaced(d));
+  const studs = (n) => `<span class="studs" aria-hidden="true">${'<i></i>'.repeat(n)}</span>`;
+  const studCount = (size) => (size <= 3 ? 1 : size <= 10 ? 2 : size <= 25 ? 3 : size <= 60 ? 4 : 6);
+  const svg = (p) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const ICON = {
+    lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    dot: svg('<circle cx="12" cy="12" r="6"/>'),
+    up: svg('<path d="M6 15l6-6 6 6"/>'),
+    arrow: svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+    down: svg('<path d="M12 5v14M6 13l6 6 6-6"/>'),
+    slot: svg('<rect x="3.5" y="8" width="17" height="11" rx="2" stroke-dasharray="3 3"/><path d="M8 8V5.5M16 8V5.5"/>'),
+    star: svg('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/>'),
+  };
+
+  let placed = (() => {
+    try {
+      const ok = [];
+      JSON.parse(localStorage.getItem(KEY) || '[]').forEach((id) => {
+        if (byId[id] && !ok.includes(id) && (byId[id].deps || []).every((d) => ok.includes(d))) ok.push(id);
+      });
+      return ok;
+    } catch (e) { return []; }
+  })();
+  let selected = placed[placed.length - 1] || null;
+  let delays = {};      // bricks landing in this render, with the ms to wait before they snap
+  let returned = null;  // a brick that just came back to the tray
+  let sheetOpen = false;
+  let auto = null;      // the "Watch it build" timer while it runs
+  let fitSet = null;    // bricks that fit at the last render, to spot the ones a landing just unlocked
+  const save =() => { try { localStorage.setItem(KEY, JSON.stringify(placed)); } catch (e) { /* per-viewer convenience only */ } };
+
+  // The tray is shuffled with a fixed seed, so the locked bricks never hand over the answer.
+  let seed = (D.pr.number || 7) >>> 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const trayOrder = B.map((b) => b.id);
+  for (let i = trayOrder.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [trayOrder[i], trayOrder[j]] = [trayOrder[j], trayOrder[i]]; }
+
+  // Small highlighter: comments, strings, JSX tags, keywords, numbers. Multi-line tokens are split per line.
+  const KW = new Set('import from export default function const let var return if else async await type interface extends true false null undefined new of in typeof as query mutation'.split(' '));
+  function highlight(src) {
+    const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|(`(?:\\[\s\S]|[^`\\])*`?|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*")|(=>|[<>]=)|(<\/?[A-Za-z][\w.]*|\/?>)|([A-Za-z_$][\w$]*)|(\d+(?:\.\d+)?)/g;
+    const out = [[]];
+    const push = (cls, s) => s.split('\n').forEach((part, i) => {
+      if (i) out.push([]);
+      if (part) out[out.length - 1].push(cls ? `<span class="sx-${cls}">${esc(part)}</span>` : esc(part));
+    });
+    let last = 0, m;
+    while ((m = re.exec(src))) {
+      push('', src.slice(last, m.index));
+      const cls = m[1] ? 'cm' : m[2] ? 'str' : m[3] ? '' : m[4] ? 'tag' : m[5] ? (KW.has(m[5]) ? 'kw' : '') : 'num';
+      push(cls, m[0]);
+      last = re.lastIndex;
+    }
+    push('', src.slice(last));
+    return out.map((a) => a.join(''));
+  }
+
+  function codeHTML(k) {
+    // Drop the indent every line shares, so a snippet from deep inside JSX starts at the left edge.
+    const indent = Math.min(...k.lines.filter((l) => l.text.trim()).map((l) => l.text.match(/^ */)[0].length));
+    const hl = highlight(k.lines.map((l) => l.text.slice(indent)).join('\n'));
+    const rows = k.lines.map((l, i) => `<span class="ln ${l.add ? 'add' : 'ctx'}"><span class="n">${l.n}</span><span class="m">${l.add ? '+' : ''}</span><span class="t">${hl[i] || ' '}</span></span>`).join('');
+    const fresh = k.lines.filter((l) => l.add).length;
+    return `<figure class="code"><figcaption class="code-head"><a href="${esc(k.href)}" target="_blank" rel="noopener">${esc(k.file.split('/').pop())}:${k.start}${k.end > k.start ? '-' + k.end : ''}</a><span>${fresh === k.lines.length ? 'all new' : fresh + ' new'}</span></figcaption><pre><code>${rows}</code></pre></figure>`;
+  }
+
+  function cropHTML(s) {
+    const shot = D.shots && D.shots[s.id];
+    if (!shot) return '';
+    const [x, y, w, h] = s.crop || [0, 0, 1, 1];
+    const ar = (w * shot.w) / (h * shot.h);
+    const px = w >= 1 ? 0 : (x / (1 - w)) * 100;
+    const py = h >= 1 ? 0 : (y / (1 - h)) * 100;
+    return `<figure class="crop"><div class="frame" role="img" aria-label="${esc(s.alt || shot.alt)}" style="aspect-ratio:${ar.toFixed(4)};background-image:url('${esc(shot.src)}');background-size:${(100 / w).toFixed(3)}% ${(100 / h).toFixed(3)}%;background-position:${px.toFixed(3)}% ${py.toFixed(3)}%"></div><figcaption>${fmt(s.caption || 'In the real app.')}</figcaption></figure>`;
+  }
+
+  // One sentence on where a brick goes, for the tooltip and the panel.
+  function whereText(id, future) {
+    const s = spots[id];
+    if (!s) return byId[id].layer === 'test' ? `${future ? 'Will join' : 'Sits in'} the test bench, under the screens.` : `${future ? 'Will light up its slot' : 'Works'} behind the screen. It has no box of its own.`;
+    const badge = s.find((x) => x.on !== undefined);
+    if (badge && s.length === 1) return `${future ? 'Will add' : 'Adds'} ${code(badge.label)} to ${code(badge.on)} on ${esc(badge.screen)}.`;
+    const labels = [...new Set(s.filter((x) => x.on === undefined).map((x) => x.label).filter(Boolean))];
+    return `${future ? 'Will fill' : 'Fills'} ${list(labels.map(code))} on ${esc(s[0].screen)}.`;
+  }
+
+  const fx = (id) => (id in delays ? { c: ' landed', s: ` style="--delay:${delays[id]}ms"` } : { c: '', s: '' });
+
+  function regionHTML(r, parent, live) {
+    const kids = (r.children || []).map((c) => regionHTML(c, r.brick || parent, live)).join('');
+    if (!r.label && !r.brick && !r.existing) return `<div class="group" data-dir="${r.dir || 'col'}">${kids}</div>`;
+    const b = r.brick && byId[r.brick];
+    const on = b && isPlaced(b.id);
+    const state = r.existing ? 'existing' : on ? 'filled' : 'empty';
+    const own = b && b.id !== parent;
+    const e = live && own ? fx(b.id) : { c: '', s: '' };
+    const sel = live && own && on && b.id === selected ? ' sel' : '';
+    const pill = !live || !own ? '' : on ? (sel ? `<span class="pill here solid" data-layer="${b.layer}">${ICON.check}${esc(b.name)}</span>` : '') : `<span class="pill wait" data-layer="${b.layer}">${ICON.slot}${esc(b.name)}</span>`;
+    const badges = (r.badges || []).map((g) => {
+      const gb = byId[g.brick];
+      const p = isPlaced(g.brick);
+      const ge = live ? fx(g.brick) : { c: '', s: '' };
+      const gs = live && p && g.brick === selected ? ' sel' : '';
+      return p
+        ? `<span class="badge solid${ge.c}${gs}"${ge.s} data-layer="${gb.layer}" data-brick="${gb.id}" data-pick="${gb.id}" role="button" tabindex="0" aria-label="${esc(g.text)}: ${esc(gb.name)}">${esc(g.text)}</span>`
+        : `<span class="badge" data-layer="${gb.layer}" data-brick="${gb.id}" title="Comes with ${esc(gb.name)}">${esc(g.text)}</span>`;
+    }).join('');
+    const mock = (r.lines || []).map((l) => `<div class="mk mk-${l.look || 'text'}">${esc(l.text)}</div>`).join('');
+    const pick = on ? ` data-pick="${b.id}" role="button" tabindex="0" aria-label="${esc(r.label)}: ${esc(b.name)}"` : '';
+    const attrs = b && own ? ` data-brick="${b.id}"` : '';
+    return `<div class="rg${e.c}${sel}"${e.s} data-state="${state}" data-layer="${b ? b.layer : ''}"${attrs}${pick}${r.existing ? ' title="Already in the app"' : ''}><div class="rg-head"><span class="rg-tag">${esc(r.label || '')}</span>${pill}${badges ? `<span class="badges">${badges}</span>` : ''}</div>${mock}${kids ? `<div class="rg-kids" data-dir="${r.dir || 'col'}">${kids}</div>` : ''}</div>`;
+  }
+
+  const screenHTML = (s, live) => `<div class="screen"><div class="screen-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="route">${esc(s.route || '')}</span><span class="sname">${esc(s.name)}</span></div><div class="screen-body">${regionHTML(s.root, null, live)}</div></div>`;
+
+  function slotHTML(b) {
+    const on = isPlaced(b.id);
+    const e = fx(b.id);
+    const checks = b.checks ? `<ul class="checks">${b.checks.map((c, i) => `<li style="--i:${i}">${on ? ICON.check : ICON.dot}<span>${esc(c)}</span></li>`).join('')}</ul>` : '';
+    return on
+      ? `<button type="button" class="slot solid${e.c}${b.id === selected ? ' sel' : ''}"${e.s} data-layer="${b.layer}" data-brick="${b.id}" data-pick="${b.id}">${studs(Math.min(4, studCount(b.size)))}<span class="s-name">${esc(b.name)}</span>${checks}</button>`
+      : `<div class="slot ghosty" data-layer="${b.layer}" data-brick="${b.id}"><span class="s-name">${esc(b.name)}</span>${checks}</div>`;
+  }
+
+  function bandHTML(xs, title, note) {
+    if (!xs.length) return '';
+    const layers = Object.keys(LAYERS).filter((l) => xs.some((b) => b.layer === l));
+    const lanes = layers.map((l) => `<div class="lane">${layers.length > 1 ? `<h4>${LAYERS[l]}</h4>` : ''}<div class="slots">${xs.filter((b) => b.layer === l).map(slotHTML).join('')}</div></div>`).join('');
+    return `<section class="band"><div class="band-h"><h3>${title}</h3><p>${note}</p></div>${lanes}</section>`;
+  }
+
+  function brickHTML(id) {
+    const b = byId[id];
+    const need = missing(id);
+    const label = need.length
+      ? `${b.name}, ${LAYERS[b.layer]}, locked. Needs ${list(need.map((d) => byId[d].name))} first`
+      : `${b.name}, ${LAYERS[b.layer]}, fits now`;
+    const fresh = !need.length && fitSet && !fitSet.has(id) && id !== returned;
+    const state = need.length ? `${ICON.lock}Needs ${need.length}` : fresh ? `${ICON.star}Unlocked` : `${ICON.check}Fits`;
+    return `<li><button type="button" class="brick ${need.length ? 'ghosty locked' : 'solid fits'}${id === returned ? ' back' : ''}${fresh ? ' unlocked' : ''}" data-layer="${b.layer}" data-id="${id}" draggable="true" aria-label="${esc(label)}">${studs(studCount(b.size))}<span class="b-name">${esc(b.name)}</span><span class="b-meta"><span class="b-size">${LAYERS[b.layer]} · ${b.size} line${b.size === 1 ? '' : 's'}</span><span class="b-state">${state}</span></span></button></li>`;
+  }
+
+  function relChip(id) {
+    const b = byId[id];
+    return isPlaced(id)
+      ? `<button type="button" class="link-chip solid" data-layer="${b.layer}" data-pick="${id}">${esc(b.name)}</button>`
+      : `<button type="button" class="link-chip ghosty" data-layer="${b.layer}" data-find="${id}" title="Not placed yet. Find it in the tray">${esc(b.name)}</button>`;
+  }
+
+  const toggleHTML = () => `<button type="button" class="p-toggle" id="p-toggle" aria-expanded="${sheetOpen}" aria-controls="p-more">${sheetOpen ? 'Less' : 'Details'}${ICON.up}</button>`;
+
+  function panelHTML() {
+    if (!selected) {
+      const counts = Object.keys(LAYERS).map((l) => [l, B.filter((b) => b.layer === l).length]).filter((c) => c[1]);
+      return `<div class="p-head"><div class="p-top"><p class="p-eyebrow">Start here</p>${toggleHTML()}</div>
+        <h3 class="p-plain" id="p-title" tabindex="-1">${B.length} bricks, one feature</h3>
+        <p class="job">Each brick is one piece of this pull request: a query, a rule, a part of the screen, a switch, a test.</p>
+        <p class="p-alt">Or sit back and <button type="button" class="show" data-act="watch">watch it build itself${ICON.arrow}</button></p></div>
+        <div class="p-more" id="p-more"><ol class="steps"><li><span><b>Pick a glowing brick.</b> Solid bricks fit now. Dashed ones need other bricks first; point at one to see which.</span></li>
+        <li><span><b>Watch it land.</b> Its box on the screen fills in, or its slot behind the screen lights up.</span></li>
+        <li><span><b>Read what it adds.</b> This panel shows its job, its key lines, and what it plugs into.</span></li></ol>
+        <section><h4>Brick colours</h4><ul class="legend">${counts.map(([l, n]) => `<li><span class="swatch solid" data-layer="${l}"></span>${LAYERS[l]} · ${n}</li>`).join('')}
+        <li><span class="swatch ghosty" data-layer="data"></span>Dashed brick: locked for now</li>
+        <li><span class="swatch wait"></span>Dashed box: waiting for its brick</li><li><span class="swatch have"></span>Grey box: already in the app</li></ul></section></div>`;
+    }
+    const b = byId[selected];
+    const on = isPlaced(b.id);
+    const e = fx(b.id);
+    const title = `<h3 class="p-brick ${on ? 'solid' : 'ghosty'}${e.c}"${e.s} data-layer="${b.layer}" id="p-title" tabindex="-1">${studs(studCount(b.size))}${esc(b.name)}</h3>`;
+    const where = `<p class="where"><span>${whereText(b.id, !on)}</span><button type="button" class="show" data-show="${b.id}">${on ? 'Show me' : 'Show where'}${ICON.arrow}</button></p>`;
+    if (!on) {
+      const need = missing(b.id);
+      return `<div class="p-head"><div class="p-top"><p class="p-eyebrow">${ICON.lock}${need.length ? 'Locked' : 'Fits now'} · ${LAYERS[b.layer]}</p></div>${title}<p class="job">${fmt(b.job)}</p>
+        <div class="needs">${need.length ? `<p>Place ${need.length === 1 ? 'this brick' : 'these ' + need.length + ' bricks'} first:</p><div class="rel">${need.map(relChip).join('')}</div>` : `<p>It fits now. Click it in the tray${touch() ? '' : ', or press <kbd>N</kbd>'}.</p>`}</div>${where}</div>`;
+    }
+    const n = placed.indexOf(b.id) + 1;
+    const fresh = b.id === placed[placed.length - 1];
+    const uses = (b.deps || []).map(relChip).join('') || '<span class="none">Nothing. It stands on its own.</span>';
+    const usedBy = (dependents[b.id] || []).map(relChip).join('') || '<span class="none">Nothing in this pull request.</span>';
+    const files = b.ranges.map((r) => `<li><a href="${esc(r.href)}" target="_blank" rel="noopener">${esc(r.file)}:${r.start}${r.end > r.start ? '-' + r.end : ''}</a></li>`).join('');
+    return `<div class="p-head"><div class="p-top"><p class="p-eyebrow${fresh ? ' fresh' : ''}">${fresh ? ICON.star + 'Just placed' : 'Placed'} · ${n} of ${B.length}</p>${toggleHTML()}</div>${title}<p class="job">${fmt(b.job)}</p>${where}</div>
+      <div class="p-more" id="p-more">
+      ${b.shot ? cropHTML(b.shot) : ''}
+      <section><h4>What it adds</h4><p>${fmt(b.adds)}</p></section>
+      ${(b.key || []).length ? `<section><h4>Key lines</h4><div>${b.key.map(codeHTML).join('')}</div></section>` : ''}
+      <section><h4>How it connects</h4>${b.connects ? `<p>${fmt(b.connects)}</p>` : ''}
+        <div class="rel"><span class="rel-h">Uses</span>${uses}</div>
+        <div class="rel"><span class="rel-h">Used by</span>${usedBy}</div></section>
+      <details><summary>Every line in this brick (${b.size} added)</summary><ul class="files">${files}</ul></details></div>`;
+  }
+
+  const hintHTML = (done, fitsNow) => auto ? '<b>Building it for you.</b> Click anything or press a key to take over.'
+      : done ? `<b>Built!</b> All ${B.length} bricks are in. Scroll down to see how it all fits.`
+      : !placed.length ? `<b>Your move:</b> pick a glowing brick from the tray. ${fitsNow.length} fit now.`
+      : fitsNow.length === 1 ? `<b>Next move:</b> ${esc(fitsNow[0].name)} is the only brick that fits.`
+      : `<b>Next move:</b> ${fitsNow.length} bricks fit. Pick any glowing one.`;
+
+  function render() {
+    const tray = $('#tray');
+    const fromTray = tray.contains(document.activeElement);
+    unpreview();
+    const done = placed.length === B.length;
+    const fitsNow = B.filter((x) => !isPlaced(x.id) && !missing(x.id).length);
+
+    $('#meter').innerHTML = B.map((_, i) => {
+      const id = placed[i];
+      if (!id) return '<i></i>';
+      const e = fx(id);
+      return `<i class="on${e.c}"${e.s} data-layer="${byId[id].layer}"></i>`;
+    }).join('');
+    $('#hint').innerHTML = hintHTML(done, fitsNow);
+    $('#next').innerHTML = done ? `See how it all fits${ICON.down}` : 'Place next <kbd>N</kbd>';
+    $('#all').disabled = done;
+    $('#undo').disabled = $('#reset').disabled = !placed.length;
+    $('#hud').classList.toggle('done', done);
+
+    const strip = $('#stack');
+    strip.innerHTML = placed.length ? placed.map((id, i) => {
+      const b = byId[id];
+      const e = fx(id);
+      return `<li><button type="button" class="sb solid${e.c}"${e.s} data-layer="${b.layer}" data-pick="${id}" aria-current="${id === selected}">${studs(2)}<span class="num">${i + 1}</span>${esc(b.name)}</button></li>`;
+    }).join('') : '<li class="strip-empty">Your bricks line up here as you place them.</li>';
+    const cur = strip.querySelector('[aria-current="true"]');
+    if (cur) strip.scrollLeft = Math.max(0, cur.offsetLeft + cur.offsetWidth - strip.clientWidth + 12);
+
+    const left = trayOrder.filter((id) => !isPlaced(id));
+    const fits = left.filter((id) => !missing(id).length).sort((a, b) => order[a] - order[b]);
+    const locked = left.filter((id) => missing(id).length);
+    tray.innerHTML = left.length
+      ? (fits.length ? `<div class="tg"><h3 class="tg-h"><span class="tg-dot" aria-hidden="true"></span>Fits now <span class="tg-n">${fits.length}</span></h3><ul class="bricks">${fits.map(brickHTML).join('')}</ul></div>` : '')
+        + (locked.length ? `<div class="tg tg-locked"><h3 class="tg-h">Locked <span class="tg-n">${locked.length}</span></h3><p class="tg-note">${touch() ? 'Tap' : 'Point at'} one to see what it needs.</p><ul class="bricks">${locked.map(brickHTML).join('')}</ul></div>` : '')
+      : `<div class="tray-done"><h3>${ICON.star}All ${B.length} placed</h3><p>The tray is empty and the screen is whole.</p><button type="button" class="btn primary" data-final>See how it all fits${ICON.down}</button></div>`;
+    fitSet = new Set(fits);
+
+    const off = B.filter((b) => !spots[b.id]);
+    $('#screens').innerHTML = bandHTML(off.filter((b) => b.layer !== 'test'), 'Behind the screen', 'Data and rules the screen stands on.')
+      + D.screens.map((s) => screenHTML(s, true)).join('')
+      + bandHTML(off.filter((b) => b.layer === 'test'), 'Test bench', 'Tests that prove the bricks hold together.');
+
+    const panel = $('#panel');
+    panel.innerHTML = panelHTML() + `<div class="p-tools"><button type="button" class="btn" data-act="watch">${auto ? 'Stop' : 'Watch it build'}</button><button type="button" class="btn" data-act="all"${done ? ' disabled' : ''}>Place all</button><button type="button" class="btn" data-act="reset"${placed.length ? '' : ' disabled'}>Start over</button></div>`;
+    panel.classList.toggle('open', sheetOpen);
+    panel.scrollTop = 0;
+
+    $('#final').classList.toggle('open', done);
+    $('#final-kicker').innerHTML = done ? `${ICON.star}You built it` : `${ICON.lock}Unlocks at ${B.length} of ${B.length}`;
+    $('#final-status').textContent = done ? 'Every brick is in. Here is the whole feature, start to finish.' : `${B.length - placed.length} brick${B.length - placed.length === 1 ? '' : 's'} to go.`;
+    if (done) $('#compose').innerHTML = D.screens.map((s) => `<div class="compose-row">${screenHTML(s, false)}${s.shot ? cropHTML(s.shot) : ''}</div>`).join('');
+
+    if (fromTray) ($('#tray .brick') || $('#next')).focus({ preventScroll: true });
+  }
+
+  const say = (msg) => { $('#live').textContent = msg; };
+  let shown = placed.length;
+  function countTo(n, wait) {
+    const el = $('#count');
+    const from = shown;
+    shown = n;
+    if (calm() || from === n) { el.textContent = n; return; }
+    setTimeout(() => {
+      const t0 = performance.now();
+      const dur = Math.min(900, 200 + Math.abs(n - from) * 50);
+      const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur);
+        el.textContent = Math.round(from + (n - from) * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(step);
+        else { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+      };
+      requestAnimationFrame(step);
+    }, wait || 0);
+  }
+
+  // Scroll a piece into view below the HUD (and the dock) and above the bottom sheet. Returns how far it scrolled.
+  function bringIntoView(el) {
+    const r = el.getBoundingClientRect();
+    const top = Math.max($('#hud').getBoundingClientRect().bottom, dockMode() ? $('#tray-box').getBoundingClientRect().bottom : 0) + 14;
+    const bottom = innerHeight - (sheetMode() ? $('#panel').getBoundingClientRect().height : 0) - 14;
+    if (r.top >= top && r.top + Math.min(r.height, bottom - top) <= bottom) return 0;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    const y = Math.max(0, Math.min(max, scrollY + r.top - top));
+    window.scrollTo({ top: y, behavior: calm() ? 'auto' : 'smooth' });
+    return y - scrollY;
+  }
+  const spot = (id) => document.querySelector(`#screens [data-brick="${id}"]`);
+  const ping = (el) => { el.classList.remove('ping'); void el.offsetWidth; el.classList.add('ping'); setTimeout(() => el.classList.remove('ping'), 1700); };
+
+  // The brick flies from where it was picked up to the box it fills, in an arc, while the page scrolls there.
+  function fly(id, src) {
+    const el = spot(id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const dy = bringIntoView(el);
+    if (!src || calm()) return;
+    // A brick scrolled out of the phone dock would start off-screen and widen the page.
+    const vw = document.documentElement.clientWidth;
+    src = { left: Math.max(0, Math.min(src.left, vw - src.width)), top: src.top, width: src.width, height: src.height };
+    const b = byId[id];
+    const g = document.createElement('div');
+    g.className = 'flyer solid';
+    g.dataset.layer = b.layer;
+    g.setAttribute('aria-hidden', 'true');
+    g.innerHTML = `${studs(studCount(b.size))}<span class="b-name">${esc(b.name)}</span>`;
+    Object.assign(g.style, { left: src.left + 'px', top: src.top + 'px', width: src.width + 'px', height: src.height + 'px' });
+    document.body.append(g);
+    const tx = r.left + Math.min(r.width, src.width) / 2 - (src.left + src.width / 2);
+    const ty = r.top - dy + Math.min(r.height, src.height) / 2 - (src.top + src.height / 2);
+    const lift = Math.min(110, 40 + Math.abs(tx) * 0.2);
+    g.animate([
+      { transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1 },
+      { transform: `translate(${tx * 0.5}px, ${ty * 0.5 - lift}px) scale(1.08) rotate(-5deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(${tx}px, ${ty}px) scale(0.85) rotate(0deg)`, opacity: 1, offset: 0.88 },
+      { transform: `translate(${tx}px, ${ty + 4}px) scale(0.78)`, opacity: 0 },
+    ], { duration: FLY, easing: 'cubic-bezier(.45, 0, .25, 1)' }).onfinish = () => g.remove();
+  }
+
+  // Once a brick has landed, a wire draws in from each brick it uses, with a dot riding along it.
+  let wireTimer = null;
+  function wires(id, wait) {
+    const box = $('#wires');
+    clearTimeout(wireTimer);
+    if (calm()) return;
+    wireTimer = setTimeout(() => {
+      const to = spot(id);
+      const froms = (byId[id].deps || []).map((d) => [d, spot(d)]).filter((x) => x[1]);
+      if (!to || !froms.length) return;
+      const pt = (el) => { const r = el.getBoundingClientRect(); return [r.left + Math.min(r.width, 260) / 2, r.top + Math.min(r.height / 2, 22)]; };
+      const [tx, ty] = pt(to);
+      box.innerHTML = froms.map(([d, el]) => {
+        const [fx, fy] = pt(el);
+        const cx = (fx + tx) / 2 + (ty - fy) * 0.25, cy = (fy + ty) / 2 - (tx - fx) * 0.25 - 30;
+        const path = `M${fx.toFixed(1)} ${fy.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)}`;
+        return `<g data-layer="${byId[d].layer}"><path d="${path}" pathLength="1"/><circle r="6"><animateMotion dur="0.55s" begin="indefinite" fill="freeze" path="${path}"/></circle></g>`;
+      }).join('') + `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="0" data-layer="${byId[id].layer}"><animate attributeName="r" values="0;10;6" dur="0.4s" begin="0.5s" fill="freeze"/></circle>`;
+      box.classList.remove('out');
+      box.removeAttribute('hidden');
+      box.querySelectorAll('animateMotion').forEach((a) => a.beginElement());
+      wireTimer = setTimeout(() => {
+        box.classList.add('out');
+        wireTimer = setTimeout(() => { box.setAttribute('hidden', ''); box.innerHTML = ''; }, 450);
+      }, 1500);
+    }, wait);
+  }
+
+  // "Watch it build": places every brick in build order, one at a time, like a timelapse.
+  function stopWatch() {
+    if (!auto) return;
+    clearTimeout(auto);
+    auto = null;
+    $('#watch').setAttribute('aria-pressed', 'false');
+    $('#watch').textContent = 'Watch it build';
+    $('#hint').innerHTML = hintHTML(placed.length === B.length, B.filter((x) => !isPlaced(x.id) && !missing(x.id).length));
+  }
+  function watch() {
+    if (auto) { stopWatch(); return; }
+    if (placed.length === B.length) reset();
+    $('#watch').setAttribute('aria-pressed', 'true');
+    $('#watch').textContent = 'Stop';
+    const step = () => {
+      if (placed.length === B.length) { stopWatch(); return; }
+      next();
+      auto = setTimeout(step, calm() ? 900 : 1800);
+    };
+    auto = setTimeout(step, 250);
+    $('#hint').innerHTML = hintHTML(false, []);
+  }
+
+  function confetti() {
+    if (calm()) return;
+    const c = $('#confetti');
+    c.hidden = false;
+    const dpr = devicePixelRatio || 1;
+    c.width = innerWidth * dpr;
+    c.height = innerHeight * dpr;
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const css = getComputedStyle(document.documentElement);
+    const cols = ['--data', '--logic', '--ui', '--wiring', '--test'].map((v) => css.getPropertyValue(v).trim());
+    const ps = Array.from({ length: 110 }, (_, i) => ({
+      x: innerWidth * (0.3 + Math.random() * 0.4), y: innerHeight * 0.32, vx: (Math.random() - 0.5) * 16, vy: -6 - Math.random() * 13,
+      a: Math.random() * 6, va: (Math.random() - 0.5) * 0.3, s: 0.7 + Math.random() * 0.7, c: cols[i % cols.length],
+    }));
+    const t0 = performance.now();
+    const frame = (t) => {
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      ps.forEach((p) => {
+        p.vy += 0.42; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.a += p.va;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.scale(p.s, p.s);
+        ctx.fillStyle = p.c; ctx.strokeStyle = 'rgba(0,0,0,.18)';
+        ctx.fillRect(-8, -4, 16, 9); ctx.fillRect(-6, -7, 4, 3); ctx.fillRect(2, -7, 4, 3); ctx.strokeRect(-8, -4, 16, 9);
+        ctx.restore();
+      });
+      if (t - t0 < 2400) requestAnimationFrame(frame); else { ctx.clearRect(0, 0, innerWidth, innerHeight); c.hidden = true; }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  function finish(wait) {
+    say(`All ${B.length} bricks placed. How it all fits is open below the board.`);
+    setTimeout(confetti, wait);
+  }
+
+  function place(id, from) {
+    if (isPlaced(id)) { pick(id); return; }
+    const need = missing(id);
+    if (need.length) {
+      selected = id;
+      delays = {};
+      render();
+      const el = $(`.brick[data-id="${id}"]`);
+      if (el) { el.classList.add('nudge'); setTimeout(() => el.classList.remove('nudge'), 450); preview(el); }
+      say(`${byId[id].name} doesn't fit yet. It needs ${list(need.map((d) => byId[d].name))} first.`);
+      return;
+    }
+    const brickEl = $(`.brick[data-id="${id}"]`);
+    const src = from || (brickEl && brickEl.getBoundingClientRect());
+    const flying = !calm() && !!src;
+    placed.push(id);
+    selected = id;
+    sheetOpen = false;
+    delays = { [id]: flying ? Math.round(FLY * 0.82) : 0 };
+    save();
+    render();
+    fly(id, src);
+    wires(id, FLY + 220);
+    delays = {};
+    countTo(placed.length, flying ? FLY * 0.82 : 0);
+    say(`${byId[id].name} placed. ${placed.length} of ${B.length}.`);
+    if (placed.length === B.length) finish(flying ? FLY : 0);
+  }
+
+  function pick(id) {
+    selected = id;
+    delays = {};
+    render();
+    const el = spot(id);
+    if (el) { bringIntoView(el); ping(el); }
+    const t = $('#p-title');
+    if (t) t.focus({ preventScroll: true });
+  }
+
+  const goFinal = () => {
+    $('#final').scrollIntoView({ behavior: calm() ? 'auto' : 'smooth', block: 'start' });
+    $('#final-h').focus({ preventScroll: true });
+  };
+  const next = () => {
+    if (placed.length === B.length) { goFinal(); return; }
+    const b = B.find((x) => !isPlaced(x.id) && !missing(x.id).length);
+    if (b) place(b.id);
+  };
+  const undo = () => {
+    const id = placed.pop();
+    if (!id) return;
+    if (selected === id) selected = placed[placed.length - 1] || null;
+    returned = id;
+    delays = {};
+    save();
+    render();
+    returned = null;
+    countTo(placed.length, 0);
+    say(`${byId[id].name} is back in the tray.`);
+  };
+  const placeAll = () => {
+    const rest = B.filter((b) => !isPlaced(b.id));
+    if (!rest.length) return;
+    delays = {};
+    rest.forEach((b, i) => { placed.push(b.id); delays[b.id] = calm() ? 0 : i * 90; });
+    selected = rest[rest.length - 1].id;
+    sheetOpen = false;
+    save();
+    render();
+    delays = {};
+    countTo(placed.length, 0);
+    finish(calm() ? 0 : rest.length * 90 + 250);
+  };
+  const reset = () => {
+    placed = [];
+    fitSet = null;
+    selected = null;
+    sheetOpen = false;
+    delays = {};
+    save();
+    render();
+    countTo(0, 0);
+    say('Back to an empty baseplate.');
+  };
+
+  $('#next').addEventListener('click', next);
+  $('#undo').addEventListener('click', undo);
+  $('#all').addEventListener('click', placeAll);
+  $('#reset').addEventListener('click', reset);
+  $('#watch').addEventListener('click', watch);
+  $('#again').addEventListener('click', () => { reset(); scrollTo({ top: 0, behavior: calm() ? 'auto' : 'smooth' }); });
+  $('#rewatch').addEventListener('click', () => { scrollTo({ top: 0, behavior: calm() ? 'auto' : 'smooth' }); watch(); });
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (auto && !t.closest('#watch, #rewatch, [data-act="watch"]')) stopWatch();
+    const act = t.closest('[data-act]');
+    if (act) { ({ watch, all: placeAll, reset })[act.dataset.act](); return; }
+    const brick = t.closest('#tray .brick');
+    if (brick) { place(brick.dataset.id); return; }
+    if (t.closest('[data-final]')) { goFinal(); return; }
+    const show = t.closest('[data-show]');
+    if (show) { const el = spot(show.dataset.show); if (el) { bringIntoView(el); ping(el); } return; }
+    const p = t.closest('[data-pick]');
+    if (p) { pick(p.dataset.pick); return; }
+    const find = t.closest('[data-find]');
+    if (find) {
+      const el = $(`.brick[data-id="${find.dataset.find}"]`);
+      if (el) { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); el.focus({ preventScroll: true }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1000); }
+      return;
+    }
+    if (t.closest('#p-toggle')) {
+      sheetOpen = !sheetOpen;
+      const panel = $('#panel');
+      panel.classList.toggle('open', sheetOpen);
+      const btn = $('#p-toggle');
+      btn.setAttribute('aria-expanded', sheetOpen);
+      btn.innerHTML = `${sheetOpen ? 'Less' : 'Details'}${ICON.up}`;
+      panel.scrollTop = 0;
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[data-pick]:not(button)')) { e.preventDefault(); t.click(); return; }
+    if (t.closest && t.closest('input, textarea, select, [contenteditable]')) return;
+    if (auto && e.key !== 'Tab' && !t.closest('#watch, #rewatch')) stopWatch();
+    if (e.key === 'Escape') { unpreview(); if (sheetOpen) $('#p-toggle').click(); }
+    if (e.key === 'n' || e.key === 'N') { e.preventDefault(); next(); }
+    if (e.key === 'u' || e.key === 'U') { e.preventDefault(); undo(); }
+  });
+
+  // Pointing at a tray brick: a fitting one lights up the box it will fill; a locked one says what it needs.
+  const tip = $('#tip');
+  let hovered = null;
+  function preview(el) {
+    const id = el.dataset.id;
+    const need = missing(id);
+    hovered = el;
+    $$(`#screens [data-brick="${id}"]`).forEach((x) => x.classList.add('target'));
+    need.forEach((d) => { const w = $(`#tray .brick[data-id="${d}"]`); if (w) w.classList.add('wanted'); });
+    tip.innerHTML = need.length
+      ? `<p><b>Needs first:</b></p><div class="tip-chips">${need.map((d) => `<span class="mini solid" data-layer="${byId[d].layer}">${esc(byId[d].name)}</span>`).join('')}</div><p>Then: ${whereText(id, true)}</p>`
+      : `<p><b>Fits now.</b> ${whereText(id, true)}</p>`;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = r.right + 14, y = r.top, side = 'right';
+    if (x + tw > innerWidth - 12) { x = Math.min(Math.max(12, r.left), innerWidth - tw - 12); y = r.bottom + 12; side = 'below'; }
+    if (side === 'right') y = Math.max(12, Math.min(y, innerHeight - th - 12));
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+    tip.dataset.side = side;
+    tip.style.setProperty('--a', side === 'right' ? `${Math.max(10, Math.min(th - 22, r.top + 18 - y))}px` : `${Math.max(12, Math.min(tw - 24, r.left + 24 - x))}px`);
+  }
+  function unpreview() {
+    hovered = null;
+    tip.hidden = true;
+    $$('.target, .wanted').forEach((x) => x.classList.remove('target', 'wanted'));
+  }
+  document.addEventListener('mouseover', (e) => {
+    const b = e.target.closest && e.target.closest('#tray .brick');
+    if (b === hovered) return;
+    unpreview();
+    if (b) preview(b);
+  });
+  document.addEventListener('focusin', (e) => {
+    const b = e.target.closest && e.target.closest('#tray .brick');
+    if (b === hovered) return;
+    unpreview();
+    if (b && b.matches(':focus-visible')) preview(b);
+  });
+  addEventListener('scroll', () => { if (hovered) unpreview(); }, { capture: true, passive: true });
+
+  let dragRect = null;
+  const build = $('#build');
+  document.addEventListener('dragstart', (e) => {
+    const b = e.target.closest && e.target.closest('#tray .brick');
+    if (!b) return;
+    e.dataTransfer.setData('text/plain', b.dataset.id);
+    e.dataTransfer.effectAllowed = 'move';
+    dragRect = b.getBoundingClientRect();
+    tip.hidden = true;
+    b.classList.add('dragging');
+  });
+  document.addEventListener('dragend', (e) => { const b = e.target.closest && e.target.closest('.brick'); if (b) b.classList.remove('dragging'); build.classList.remove('drag-over'); });
+  build.addEventListener('dragover', (e) => { e.preventDefault(); build.classList.add('drag-over'); });
+  build.addEventListener('dragleave', (e) => { if (!build.contains(e.relatedTarget)) build.classList.remove('drag-over'); });
+  build.addEventListener('drop', (e) => {
+    e.preventDefault();
+    build.classList.remove('drag-over');
+    const id = e.dataTransfer.getData('text/plain');
+    if (!byId[id]) return;
+    const w = dragRect ? dragRect.width : 220, h = dragRect ? dragRect.height : 64;
+    place(id, { left: e.clientX - w / 2, top: e.clientY - h / 2, width: w, height: h });
+  });
+
+  // Sticky offsets follow the real heights of the HUD and the bottom sheet.
+  const root = document.documentElement;
+  new ResizeObserver(() => {
+    root.style.setProperty('--hud-h', $('#hud').offsetHeight + 'px');
+    if (!sheetOpen) root.style.setProperty('--sheet-h', (sheetMode() ? $('#panel').offsetHeight : 0) + 'px');
+  }).observe($('#hud'));
+  new ResizeObserver(() => { if (!sheetOpen) root.style.setProperty('--sheet-h', (sheetMode() ? $('#panel').offsetHeight : 0) + 'px'); }).observe($('#panel'));
+  new IntersectionObserver(([e]) => document.body.classList.toggle('at-final', e.isIntersecting), { rootMargin: '0px 0px -40% 0px' }).observe($('#final'));
+
+  // Static parts
+  const pr = D.pr;
+  $('#eyebrow').innerHTML = `<span class="logo">Bricks</span><a href="${esc(pr.url)}" target="_blank" rel="noopener">PR #${esc(pr.number)}</a><span>${esc(pr.branch || '')}</span><span>+${pr.additions} −${pr.deletions} in ${pr.files} files</span>${pr.issue ? `<a href="${esc(pr.issue.url)}" target="_blank" rel="noopener">Issue #${esc(pr.issue.number)}</a>` : ''}`;
+  $('#title').textContent = pr.title;
+  $('#total').textContent = B.length;
+  $('#count').textContent = placed.length;
+  $('#meter').style.setProperty('--n', B.length);
+  $('#summary').innerHTML = (D.summary || []).map((s) => `<li>${fmt(s)}</li>`).join('');
+  $('#order').innerHTML = B.map((b) => `<li class="solid" data-layer="${b.layer}">${esc(b.name)}</li>`).join('');
+  render();
+
+  // If the viewer did not turn the diagram into a picture, fall back to a readable list.
+  setTimeout(() => {
+    const m = document.querySelector('pre.mermaid');
+    if (m && !m.querySelector('svg')) {
+      m.classList.remove('mermaid');
+      m.textContent = B.filter((b) => (b.deps || []).length).map((b) => `${b.name}  ←  ${b.deps.map((d) => byId[d].name).join(', ')}`).join('\n');
+    }
+  }, 6000);
+})();
+</script>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });</script>
+</body></html>

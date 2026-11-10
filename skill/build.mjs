@@ -106,7 +106,7 @@ for (const b of spec.bricks || []) {
     k.lines = [];
     for (let i = k.start; i <= k.end && i <= lines.length; i++) {
       let text = lines[i - 1];
-      if (hasEmail(text)) { warnings.push(`${where}: masked an email in ${k.file}:${i}`); text = text.replace(EMAIL, 'learner@example.com'); }
+      if (hasEmail(text)) { warnings.push(`${where}: masked an email in ${k.file}:${i}`); text = text.replace(EMAIL, 'someone@example.com'); }
       k.lines.push({ n: i, text, add: !!files[k.file]?.added.has(i) });
     }
   }
