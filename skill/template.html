@@ -479,6 +479,7 @@ figcaption { font-size: 14px; color: var(--muted); }
 
 <script type="application/json" id="bricks-data">__BRICKS_DATA__</script>
 <script>
+document.head.append(document.querySelector('link[rel=icon]')); // browsers only read icons in <head>; build output sits in <body>
 (() => {
   const D = JSON.parse(document.getElementById('bricks-data').textContent);
   const B = D.bricks;
