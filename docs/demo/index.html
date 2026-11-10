@@ -326,6 +326,7 @@ figcaption { font-size: 14px; color: var(--muted); }
 
 /* Tooltip on tray bricks */
 .tip { position: fixed; z-index: 50; width: max-content; max-width: min(300px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; padding: 11px 13px; border-radius: 12px; background: var(--tip-bg); color: var(--tip-fg); font-size: 15px; line-height: 1.4; box-shadow: var(--lift); pointer-events: none; }
+.tip[hidden] { display: none; }
 .tip::before { content: ""; position: absolute; width: 12px; height: 12px; background: inherit; transform: rotate(45deg); }
 .tip[data-side="right"]::before { left: -5px; top: var(--a, 16px); }
 .tip[data-side="below"]::before { top: -5px; left: var(--a, 20px); }
@@ -1117,6 +1118,8 @@ figcaption { font-size: 14px; color: var(--muted); }
     if (b && b.matches(':focus-visible')) preview(b);
   });
   addEventListener('scroll', () => { if (hovered) unpreview(); }, { capture: true, passive: true });
+  // Pointer left the window: no later mouseover will come to hide the tip.
+  document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) unpreview(); });
 
   let dragRect = null;
   const build = $('#build');
