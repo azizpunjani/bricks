@@ -1,0 +1,10 @@
+{
+  "name": "bricks",
+  "description": "Review big AI-written pull requests one small piece at a time.",
+  "version": "1.0.0",
+  "author": { "name": "azizpunjani", "url": "https://github.com/azizpunjani" },
+  "homepage": "https://azizpunjani.github.io/bricks/",
+  "repository": "https://github.com/azizpunjani/bricks",
+  "license": "MIT",
+  "skills": ["./skill"]
+}
